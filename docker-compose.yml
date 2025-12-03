@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: aether_db
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: rpgpassword
+      POSTGRES_DB: aether_rpg
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  app:
+    build: .
+    container_name: aether_app
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://admin:rpgpassword@db:5432/aether_rpg
+      JWT_SECRET: secret_key_super_secure
+    depends_on:
+      - db
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
