@@ -26,6 +26,8 @@ RUN npm install --production --ignore-scripts
 
 # Copy backend structure
 COPY server ./server
+# Copy database init script
+COPY init.sql .
 
 # Copy frontend build from builder stage
 COPY --from=builder /app/dist ./dist
