@@ -7,6 +7,7 @@ import fs from 'fs';
 
 import authRoutes from './routes/authRoutes.js';
 import campaignRoutes from './routes/campaignRoutes.js';
+import characterRoutes from './routes/characterRoutes.js';
 import voiceRoutes from './routes/voiceRoutes.js';
 import runMigrations from './utils/migrate.js';
 
@@ -28,6 +29,7 @@ app.use(cors());
 
 app.use('/api', authRoutes);
 app.use('/api/campaigns', campaignRoutes);
+app.use('/api/characters', characterRoutes);
 app.use('/api/voice', voiceRoutes);
 
 // Serve Frontend

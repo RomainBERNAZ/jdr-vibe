@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Users } from 'lucide-react';
 import * as THREE from 'three';
 import { useAuth } from '../context/AuthContext';
-import { campaignApi } from '../services/api';
+import { campaignApi, characterApi } from '../services/api';
 import VoiceInput from '../components/VoiceInput';
 import CharacterCreationModal from '../components/CharacterCreationModal';
 
@@ -57,35 +57,111 @@ const generatePixelTexture = (type) => {
     return texture;
 };
 
+const CharacterSelectionModal = ({ characters, onSelect, onCreateNew }) => (
+    <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl max-w-lg w-full animate-in fade-in slide-in-from-bottom-4">
+        <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+            <Users className="text-indigo-500" /> Choisir un Aventurier
+        </h2>
+        <p className="text-zinc-400 mb-6">Sélectionnez un personnage existant pour rejoindre cette aventure.</p>
+        
+        <div className="space-y-3 max-h-64 overflow-y-auto pr-2 mb-6 scrollbar-thin scrollbar-thumb-zinc-700">
+            {characters.length === 0 ? (
+                <p className="text-zinc-500 italic text-center py-4">Aucun personnage disponible.</p>
+            ) : (
+                characters.map(char => (
+                    <button 
+                        key={char.id}
+                        onClick={() => onSelect(char)}
+                        className="w-full flex justify-between items-center p-3 bg-black border border-zinc-800 rounded hover:border-indigo-500 hover:bg-zinc-900 transition-all group text-left"
+                    >
+                        <div>
+                            <div className="font-bold text-indigo-100">{char.name}</div>
+                            <div className="text-xs text-zinc-500">{char.race} {char.class} (Niv. {char.level})</div>
+                        </div>
+                        <span className="text-xs bg-indigo-900/30 text-indigo-400 px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">Choisir</span>
+                    </button>
+                ))
+            )}
+        </div>
+
+        <div className="flex flex-col gap-3 pt-4 border-t border-zinc-800">
+            <button 
+                onClick={onCreateNew}
+                className="w-full py-3 bg-white text-black font-bold rounded hover:bg-zinc-200 transition-colors"
+            >
+                Créer un nouveau personnage
+            </button>
+        </div>
+    </div>
+);
+
 export default function CampaignPlayPage() {
     const { id } = useParams();
     const navigate = useNavigate();
     const { token } = useAuth();
     const [campaign, setCampaign] = useState(null);
     const [character, setCharacter] = useState(null);
-    const [showCharacterCreation, setShowCharacterCreation] = useState(true);
+    const [userCharacters, setUserCharacters] = useState([]);
+    
+    // 'selection' | 'creation' | 'play'
+    const [mode, setMode] = useState('loading'); 
     
     const mountRef = useRef(null);
 
-    // Charger le personnage depuis le localStorage si existant pour cette campagne
+    // 1. Init: Check localStorage OR Load User Characters
     useEffect(() => {
-        const savedChar = localStorage.getItem(`character_${id}`);
-        if (savedChar) {
-            setCharacter(JSON.parse(savedChar));
-            setShowCharacterCreation(false);
-        }
-    }, [id]);
+        const init = async () => {
+            try {
+                // Load Campaign Info
+                const camp = await campaignApi.get(token, id);
+                setCampaign(camp);
 
-    const handleCharacterCreate = (newCharacter) => {
-        setCharacter(newCharacter);
-        localStorage.setItem(`character_${id}`, JSON.stringify(newCharacter));
-        setShowCharacterCreation(false);
+                // Check LocalStorage first (Quick Resume)
+                const savedChar = localStorage.getItem(`character_${id}`);
+                if (savedChar) {
+                    setCharacter(JSON.parse(savedChar));
+                    setMode('play');
+                    return;
+                }
+
+                // Load User Characters from DB
+                const chars = await characterApi.list(token);
+                setUserCharacters(chars);
+                setMode('selection');
+
+            } catch (err) {
+                console.error("Error loading campaign data", err);
+                navigate('/');
+            }
+        };
+        if(token && id) init();
+    }, [id, token, navigate]);
+
+    const handleCharacterSelect = (char) => {
+        // TODO: Lier le personnage à la campagne dans le backend (campaign_players)
+        setCharacter(char);
+        localStorage.setItem(`character_${id}`, JSON.stringify(char));
+        setMode('play');
     };
 
-    useEffect(() => {
-        campaignApi.get(token, id).then(setCampaign).catch(console.error);
-    }, [id, token]);
+    const handleCharacterCreate = async (newCharacterData) => {
+        // 1. Save to DB
+        try {
+            // Si l'ID n'est pas présent (création locale via modal), on le crée en DB
+            if (!newCharacterData.id) {
+                const created = await characterApi.create(token, newCharacterData);
+                newCharacterData = created;
+            }
+            
+            setCharacter(newCharacterData);
+            localStorage.setItem(`character_${id}`, JSON.stringify(newCharacterData));
+            setMode('play');
+        } catch(err) {
+            console.error("Failed to create character", err);
+        }
+    };
 
+    // 3D SCENE EFFECT
     useEffect(() => {
         if (!mountRef.current) return;
 
@@ -219,6 +295,8 @@ export default function CampaignPlayPage() {
         };
     }, []);
 
+    if (mode === 'loading') return <div className="bg-black h-screen flex items-center justify-center text-white">Chargement du plan d'existence...</div>;
+
     return (
         <div className="h-screen w-full bg-zinc-950 relative overflow-hidden">
             
@@ -237,13 +315,23 @@ export default function CampaignPlayPage() {
                 </div>
 
                 <div className="flex-1 flex items-center justify-center p-2 md:p-8 h-full overflow-hidden">
-                    {/* Si on a un personnage, on affiche l'interface de jeu. Sinon le modal de création. */}
-                    {!showCharacterCreation && character ? (
+                    {/* SWITCH MODE */}
+                    {mode === 'play' && character && (
                         <div className="w-full max-w-7xl h-full animate-in fade-in duration-700 slide-in-from-bottom-4">
                             <VoiceInput initialCharacterSheet={character} />
                         </div>
-                    ) : (
-                        <CharacterCreationModal onCreate={handleCharacterCreate} />
+                    )}
+
+                    {mode === 'selection' && (
+                        <CharacterSelectionModal 
+                            characters={userCharacters} 
+                            onSelect={handleCharacterSelect}
+                            onCreateNew={() => setMode('creation')}
+                        />
+                    )}
+
+                    {mode === 'creation' && (
+                        <CharacterCreationModal onCreate={handleCharacterCreate} onCancel={() => setMode('selection')} />
                     )}
                 </div>
             </div>

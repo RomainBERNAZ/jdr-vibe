@@ -138,7 +138,7 @@ const VoiceInput = ({ initialCharacterSheet }) => {
       <div className="flex flex-1 md:flex-row relative overflow-hidden">
 
       {/* COLONNE GAUCHE : DÉS (20%) */}
-      <div className={`md:w-[20%] bg-black relative border-r border-zinc-800 flex flex-col h-full overflow-hidden ${mobileTab === 'dice' ? 'flex absolute z-20 inset-0 w-full' : 'hidden md:flex relative'} md:w-[20%]`}>
+      <div className={`bg-black border-r border-zinc-800 flex flex-col h-full overflow-hidden ${mobileTab === 'dice' ? 'flex absolute z-20 inset-0 w-full md:relative md:z-0 md:w-[20%]' : 'hidden md:flex relative md:w-[20%]'}`}>
         <div className="absolute top-0 left-0 w-full p-4 z-10 bg-gradient-to-b from-black/80 to-transparent">
             <h3 className="text-zinc-400 font-serif tracking-widest text-xs uppercase flex items-center gap-2">
                 <Dices className="w-4 h-4" /> Zone de Lancer
@@ -150,7 +150,7 @@ const VoiceInput = ({ initialCharacterSheet }) => {
       </div>
 
       {/* COLONNE CENTRALE : DIALOGUE (55%) */}
-      <div className={`md:w-[55%] flex flex-col bg-zinc-900/95 border-r border-zinc-800 h-full ${mobileTab === 'chat' ? 'flex absolute z-20 inset-0 w-full' : 'hidden md:flex relative'} md:w-[55%]`}>
+      <div className={`flex flex-col bg-zinc-900/95 border-r border-zinc-800 h-full ${mobileTab === 'chat' ? 'flex absolute z-20 inset-0 w-full md:relative md:z-0 md:w-[55%]' : 'hidden md:flex relative md:w-[55%]'}`}>
         {/* Zone de chat */}
         <div 
             ref={chatContainerRef}
@@ -217,7 +217,7 @@ const VoiceInput = ({ initialCharacterSheet }) => {
       </div>
 
       {/* COLONNE DROITE : PERSONNAGE (25%) */}
-      <div className={`md:w-[25%] bg-zinc-900/80 p-6 flex flex-col border-l border-black/50 overflow-y-auto h-full scrollbar-thin scrollbar-thumb-zinc-700 ${mobileTab === 'character' ? 'flex absolute z-20 inset-0 w-full' : 'hidden md:flex relative'} md:w-[25%]`}>
+      <div className={`bg-zinc-900/80 p-6 flex flex-col border-l border-black/50 overflow-y-auto h-full scrollbar-thin scrollbar-thumb-zinc-700 ${mobileTab === 'character' ? 'flex absolute z-20 inset-0 w-full md:relative md:z-0 md:w-[25%]' : 'hidden md:flex relative md:w-[25%]'}`}>
         <h3 className="text-zinc-400 font-serif tracking-widest text-xs uppercase mb-6 flex items-center gap-2 sticky top-0 bg-zinc-900/95 py-2 z-10 w-full">
             <Shield className="w-4 h-4" /> Fiche Personnage
         </h3>
@@ -234,7 +234,9 @@ const VoiceInput = ({ initialCharacterSheet }) => {
                 <div className="grid grid-cols-2 gap-3">
                     <div className="bg-red-900/20 border border-red-900/50 p-3 rounded-lg flex flex-col items-center">
                         <Heart className="w-5 h-5 text-red-500 mb-1" />
-                        <span className="text-lg font-bold text-red-100">{characterSheet.hp?.current}/{characterSheet.hp?.max}</span>
+                        <span className="text-lg font-bold text-red-100">
+                            {characterSheet.hp_current ?? characterSheet.hp?.current ?? '?'}/{characterSheet.hp_max ?? characterSheet.hp?.max ?? '?'}
+                        </span>
                         <span className="text-xs text-red-400">PV</span>
                     </div>
                     <div className="bg-amber-900/20 border border-amber-900/50 p-3 rounded-lg flex flex-col items-center">
