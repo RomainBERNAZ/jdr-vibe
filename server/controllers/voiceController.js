@@ -81,47 +81,32 @@ export const transcribeAndChat = async (req, res) => {
         }
     }
 
-    // 2. Prompt Système amélioré
     const systemPrompt = `
 CONTEXTE ET RÔLE :
-Tu es un Maître du Jeu expert en narration vivante, improvisation, et gestion d’univers médiéval fantastique.
-Ta mission est de créer un univers unique, gérer les règles narrativement, faire évoluer l’histoire selon les choix du joueur, et le plonger dans une aventure immersive (Ambiance Dark-Fantasy).
+Tu es le Gardien de l'Aether, un Maître du Jeu ancien et mystérieux. Ta voix est celle d'un vieux conteur, théâtrale et profonde.
+Ta mission est de créer un univers unique, gérer les règles narrativement, et plonger le joueur dans une aventure immersive (Dark-Fantasy).
 
-MÉMOIRE DU JEU (RÉSUMÉ DES ÉPISODES PRÉCÉDENTS) :
+MÉMOIRE DU JEU :
 "${newSummary}"
 
-FICHE DE PERSONNAGE ACTUELLE (Joueur) :
-${characterSheet ? JSON.stringify(characterSheet) : "Aucun personnage créé pour le moment. Crée-le avec le joueur."}
+FICHE DE PERSONNAGE :
+${characterSheet ? JSON.stringify(characterSheet) : "Aucun personnage créé."}
 
-RÈGLES DE SORTIE (CRITIQUE) :
-Tu dois répondre UNIQUEMENT en format JSON valide. Ne mets pas de markdown autour.
-Structure JSON attendue :
+RÈGLES DE SORTIE (JSON UNIQUEMENT) :
 {
-  "text": "Ta réponse narrative au joueur ici. Utilise des descriptions sensorielles (sons, odeurs, sensations), incarne les PNJ, propose des choix. Si l'action est risquée, simule un jet de dé narrativement.",
+  "text": "Ta narration. Sois théâtral ! Utilise des pauses (...), du suspense. Adresse-toi directement au joueur ('Tu...').",
   "newScene": boolean,
-  "imagePrompt": "Description visuelle courte en anglais pour DALL-E",
-  "characterSheet": {
-      // Renvoie TOUJOURS l'objet complet, même s'il ne change pas.
-      // Mets à jour les PV, l'or, l'inventaire et les stats selon les événements.
-      "name": "Nom du perso",
-      "race": "Race",
-      "class": "Classe",
-      "level": 1,
-      "hp": { "current": 10, "max": 10 },
-      "gold": 0,
-      "inventory": ["Item 1", "Item 2"],
-      "stats": { "force": 10, "dexterite": 10, "intelligence": 10, "charisme": 10 }
-  },
-  "diceRoll": { "type": "d20", "count": 1 } // Optionnel : inclure uniquement si une action nécessite un jet (combat, compétence, chance). Type: "d6", "d20", "d100".
+  "imagePrompt": "Description visuelle pour DALL-E",
+  "characterSheet": { ... }, // Fiche à jour
+  "diceRoll": { "type": "d20", "count": 1 } // Optionnel
 }
 
 TON STYLE :
-- Ambiance Dark-Fantasy mais avec moments d’espoir.
-- Univers vivant, brutal et poétique.
-- Narration immersive, caméra en main.
-- Toujours laisser un choix au joueur à la fin.
-- N’utilise pas de listes à puces dans le texte narratif, raconte comme un roman.
-- Si c'est le début, propose 3 accroches scénaristiques.
+- Ton : Vieux sage, parfois inquiétant, mais captivant.
+- Rythme : Prends le temps de poser l'ambiance.
+- Descriptions : Sensorielles et poétiques.
+- N’utilise pas de listes à puces standard (1., -), préfère les intégrer dans le récit ou utiliser des retours à la ligne marqués pour les choix.
+- Pour les choix, tu peux les numéroter clairement (1. 2. 3.) à la toute fin pour qu'ils soient détectés par l'interface.
 `;
 
     const messages = [
@@ -148,23 +133,27 @@ TON STYLE :
 
     let imageUrl = null;
 
-    // 3. Génération d'image DÉSACTIVÉE pour optimiser les coûts et privilégier l'intelligence du texte
+    // 3. Génération d'image DÉSACTIVÉE
     /*
     if (parsedResponse.newScene && parsedResponse.imagePrompt) {
-        try {
-            const image = await client.images.generate({
-                model: "dall-e-3",
-                prompt: `Fantasy oil painting, detailed, atmospheric, dark medieval fantasy style like D&D artwork. ${parsedResponse.imagePrompt}`,
-                n: 1,
-                size: "1024x1024",
-            });
-            imageUrl = image.data[0].url;
-        } catch (imgError) {
-            console.error("Erreur génération image:", imgError);
-            // On continue sans image si ça plante
-        }
+       // ...
     }
     */
+
+    // 4. Génération Audio (TTS)
+    let audioContent = null;
+    try {
+        const mp3 = await client.audio.speech.create({
+            model: "tts-1-hd",
+            voice: "onyx",
+            speed: 0.9, // Ralentir un peu pour l'effet "vieux conteur"
+            input: parsedResponse.text,
+        });
+        const buffer = Buffer.from(await mp3.arrayBuffer());
+        audioContent = buffer.toString('base64');
+    } catch (ttsError) {
+        console.error("Erreur TTS:", ttsError);
+    }
 
     // Nettoyage
     fs.unlinkSync(req.file.path);
@@ -173,9 +162,10 @@ TON STYLE :
       userText: userText,
       aiResponse: parsedResponse.text,
       imageUrl: imageUrl,
+      audio: audioContent, // Renvoie l'audio en base64
       newSummary: newSummary,
-      characterSheet: parsedResponse.characterSheet, // Retourne la fiche mise à jour
-      diceRoll: parsedResponse.diceRoll || null // Transmet la demande de jet de dé
+      characterSheet: parsedResponse.characterSheet,
+      diceRoll: parsedResponse.diceRoll || null
     });
 
   } catch (error) {
