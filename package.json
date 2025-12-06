@@ -5,7 +5,8 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "concurrently \"vite\" \"nodemon server/index.js\"",
-    "build": "vite build"
+    "build": "vite build",
+    "postinstall": "npm run build"
   },
   "dependencies": {
     "bcrypt": "^5.1.0",

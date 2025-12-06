@@ -7,6 +7,7 @@ import 'dotenv/config'; // Charger les variables d'environnement
 import authRoutes from './routes/authRoutes.js';
 import campaignRoutes from './routes/campaignRoutes.js';
 import voiceRoutes from './routes/voiceRoutes.js';
+import runMigrations from './utils/migrate.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,7 +29,8 @@ app.get('*', (req, res) => {
 });
 
 const PORT = 3000;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
+  await runMigrations(); // Auto-create tables on startup
 });
 
