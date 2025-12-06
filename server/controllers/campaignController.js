@@ -28,8 +28,13 @@ export const getCampaign = async (req, res) => {
        WHERE cp.campaign_id = $1`,
       [id]
     );
+
+    const messagesResult = await pool.query(
+      'SELECT * FROM campaign_messages WHERE campaign_id = $1 ORDER BY created_at ASC LIMIT 50',
+      [id]
+    );
     
-    res.json({ ...campaign, players: playersResult.rows });
+    res.json({ ...campaign, players: playersResult.rows, history: messagesResult.rows });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

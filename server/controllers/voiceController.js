@@ -32,9 +32,45 @@ export const transcribeAndChat = async (req, res) => {
       language: "fr",
     });
 
+import pool from '../config/db.js';
+
+// ... imports
+
+export const transcribeAndChat = async (req, res) => {
+  try {
+    const client = initOpenAI();
+    // ... (checks)
+
+    const { campaignId } = req.body; // Needs to be sent from frontend
+
+    // ... (transcription logic)
+
     const userText = transcription.text;
+
+    // Save User Message
+    if (campaignId) {
+        await pool.query(
+            'INSERT INTO campaign_messages (campaign_id, role, content) VALUES ($1, $2, $3)',
+            [campaignId, 'user', userText]
+        );
+    }
     
-    // Récupération du résumé, de l'historique et de la fiche de personnage
+    // ... (rest of the logic: history, summary, prompt)
+
+    // ... (AI generation)
+
+    const aiContent = completion.choices[0].message.content;
+    // ... (parsing)
+
+    // Save AI Message
+    if (campaignId && parsedResponse.text) {
+        await pool.query(
+            'INSERT INTO campaign_messages (campaign_id, role, content) VALUES ($1, $2, $3)',
+            [campaignId, 'assistant', parsedResponse.text]
+        );
+    }
+
+    // ... (image, audio, cleanup, response)
     let history = [];
     let summary = "";
     let characterSheet = null;
@@ -129,6 +165,14 @@ TON STYLE :
     } catch (e) {
         console.error("Erreur parsing réponse IA", aiContent);
         parsedResponse = { text: aiContent, newScene: false };
+    }
+
+    // Save AI Message
+    if (campaignId && parsedResponse.text) {
+        await pool.query(
+            'INSERT INTO campaign_messages (campaign_id, role, content) VALUES ($1, $2, $3)',
+            [campaignId, 'assistant', parsedResponse.text]
+        );
     }
 
     let imageUrl = null;

@@ -39,3 +39,11 @@ CREATE TABLE IF NOT EXISTS campaign_players (
     joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (campaign_id, user_id)
 );
+
+CREATE TABLE IF NOT EXISTS campaign_messages (
+    id SERIAL PRIMARY KEY,
+    campaign_id INTEGER REFERENCES campaigns(id) ON DELETE CASCADE,
+    role VARCHAR(50) NOT NULL, -- 'user', 'assistant'
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

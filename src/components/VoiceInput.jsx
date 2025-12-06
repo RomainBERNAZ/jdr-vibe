@@ -1,41 +1,107 @@
-import React, { useState, useRef } from 'react';
-import { Mic, Square, Loader2, MessageSquare, Shield, Heart, Coins, Backpack, Sword, Dices, Menu, X } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Mic, Square, Loader2, MessageSquare, Shield, Heart, Coins, Backpack, Sword, Dices, FastForward } from 'lucide-react';
 import DiceBox from './DiceBox';
+import { useParams } from 'react-router-dom';
 
-const VoiceInput = ({ initialCharacterSheet }) => {
+const TypewriterText = ({ text, onComplete, isNew, onSkip }) => {
+    const [displayedText, setDisplayedText] = useState(isNew ? '' : text);
+    const [isSkipped, setIsSkipped] = useState(!isNew);
+    const indexRef = useRef(0);
+
+    useEffect(() => {
+        if (!isNew || isSkipped) {
+            setDisplayedText(text);
+            onComplete?.();
+            return;
+        }
+
+        const interval = setInterval(() => {
+            if (indexRef.current < text.length) {
+                setDisplayedText(prev => prev + text.charAt(indexRef.current));
+                indexRef.current++;
+            } else {
+                clearInterval(interval);
+                onComplete?.();
+            }
+        }, 30); // Vitesse de frappe (~30ms par caractère)
+
+        return () => clearInterval(interval);
+    }, [text, isNew, isSkipped, onComplete]);
+
+    // Fonction de formatage locale pour gérer le rendu progressif
+    const formatContent = (content) => {
+        if (!content) return null;
+        return content.split('\n').map((line, i) => {
+            const trimmed = line.trim();
+            if (!trimmed) return <div key={i} className="h-2" />;
+            
+            if (trimmed.match(/^[-*•]\s/) || trimmed.match(/^\d+\.\s/)) {
+                return (
+                    <div key={i} className="my-2 ml-2 md:ml-4 p-3 bg-black/40 border-l-4 border-indigo-500 rounded-r-lg text-indigo-100 shadow-sm hover:bg-zinc-900/60 transition-colors font-sans animate-in slide-in-from-left-2 fade-in duration-300">
+                        {line}
+                    </div>
+                );
+            }
+            return <p key={i} className="mb-2">{line}</p>;
+        });
+    };
+
+    return (
+        <div className="relative group">
+            {formatContent(displayedText)}
+            {isNew && !isSkipped && displayedText.length < text.length && (
+                <button 
+                    onClick={() => { setIsSkipped(true); onSkip?.(); }}
+                    className="absolute bottom-0 right-0 translate-y-full bg-zinc-800 text-xs px-2 py-1 rounded text-zinc-400 hover:text-white hover:bg-zinc-700 flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                    <FastForward className="w-3 h-3" /> Passer
+                </button>
+            )}
+        </div>
+    );
+};
+
+const VoiceInput = ({ initialCharacterSheet, initialHistory }) => {
+  const { id: campaignId } = useParams(); // Récupérer l'ID de la campagne depuis l'URL
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [conversation, setConversation] = useState([]);
-  const [summary, setSummary] = useState(""); // Mémoire long terme
-  const [characterSheet, setCharacterSheet] = useState(initialCharacterSheet || null); // Fiche perso
-  const [diceRoll, setDiceRoll] = useState(null); // { type: 'd20', count: 1 }
   
-  // Mobile Tabs: 'chat' | 'character' | 'dice'
+  // Initialiser la conversation avec l'historique chargé si présent
+  const [conversation, setConversation] = useState(
+      initialHistory ? initialHistory.map(msg => ({
+          type: msg.role === 'user' ? 'user' : 'ai',
+          text: msg.content,
+          isNew: false // Marquer les anciens messages comme non-nouveaux
+      })) : []
+  );
+  
+  const [summary, setSummary] = useState(""); 
+  const [characterSheet, setCharacterSheet] = useState(initialCharacterSheet || null); 
+  const [diceRoll, setDiceRoll] = useState(null); 
+  
   const [mobileTab, setMobileTab] = useState('chat');
 
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
   const chatContainerRef = useRef(null);
+  const audioRef = useRef(null); // Référence pour l'objet Audio
 
-  const formatMessage = (text) => {
-    if (!text) return null;
-    return text.split('\n').map((line, i) => {
-        const trimmed = line.trim();
-        if (!trimmed) return <div key={i} className="h-2" />;
-        
-        // Détection des choix (tiret, étoile, chiffre)
-        if (trimmed.match(/^[-*•]\s/) || trimmed.match(/^\d+\.\s/)) {
-            return (
-                <div key={i} className="my-2 ml-2 md:ml-4 p-3 bg-black/40 border-l-4 border-indigo-500 rounded-r-lg text-indigo-100 shadow-sm hover:bg-zinc-900/60 transition-colors font-sans">
-                    {line}
-                </div>
-            );
-        }
-        return <p key={i} className="mb-2">{line}</p>;
-    });
+  // Scroll auto quand la conversation change
+  useEffect(() => {
+    if(chatContainerRef.current) {
+        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [conversation.length]);
+
+  const stopAudio = () => {
+      if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+      }
   };
 
   const startRecording = async () => {
+    stopAudio(); // Arrêter l'audio précédent si on parle
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaRecorderRef.current = new MediaRecorder(stream);
@@ -69,15 +135,17 @@ const VoiceInput = ({ initialCharacterSheet }) => {
     const formData = new FormData();
     formData.append('audio', audioBlob, 'recording.webm');
     
-    // On n'envoie que le texte pour l'historique, pas tout l'objet message
+    // On envoie l'ID de la campagne pour la persistance
+    if (campaignId) {
+        formData.append('campaignId', campaignId);
+    }
+
     const historyToSend = conversation.slice(-10).map(msg => ({
         role: msg.type === 'user' ? 'user' : 'assistant',
         content: msg.text
     }));
     formData.append('history', JSON.stringify(historyToSend));
-    // On envoie le résumé existant pour que le backend puisse le mettre à jour
     formData.append('summary', summary);
-    // On envoie la fiche perso actuelle pour que l'IA la mette à jour
     if(characterSheet) {
         formData.append('characterSheet', JSON.stringify(characterSheet));
     }
@@ -94,31 +162,26 @@ const VoiceInput = ({ initialCharacterSheet }) => {
       
       setConversation(prev => [
         ...prev,
-        { type: 'user', text: data.userText },
-        { type: 'ai', text: data.aiResponse }
+        { type: 'user', text: data.userText, isNew: true },
+        { type: 'ai', text: data.aiResponse, isNew: true } // Marquer comme nouveau pour l'animation
       ]);
 
-      // Mise à jour du résumé (mémoire long terme) si le serveur l'a modifié
-      if (data.newSummary) {
-          setSummary(data.newSummary);
+      if (data.newSummary) setSummary(data.newSummary);
+      if (data.characterSheet) setCharacterSheet(data.characterSheet);
+      
+      // Jouer l'audio du MJ
+      if (data.audio) {
+          stopAudio();
+          try {
+              const audio = new Audio(`data:audio/mp3;base64,${data.audio}`);
+              audioRef.current = audio;
+              audio.play();
+          } catch (e) {
+              console.error("Erreur lecture audio:", e);
+          }
       }
 
-      // Mise à jour de la fiche perso
-      if (data.characterSheet) {
-          setCharacterSheet(data.characterSheet);
-      }
-
-      // Gestion du lancer de dés (si demandé par le MJ)
-      if (data.diceRoll) {
-          setDiceRoll(data.diceRoll); // Ex: { type: 'd20', count: 1 }
-      }
-
-      // Scroll auto vers le bas
-      setTimeout(() => {
-        if(chatContainerRef.current) {
-            chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-        }
-      }, 100);
+      if (data.diceRoll) setDiceRoll(data.diceRoll);
 
     } catch (error) {
       console.error("Erreur:", error);
@@ -133,24 +196,9 @@ const VoiceInput = ({ initialCharacterSheet }) => {
       
       {/* MOBILE TABS HEADER */}
       <div className="md:hidden flex border-b border-zinc-800 bg-black z-30 relative shrink-0">
-        <button 
-            onClick={() => setMobileTab('dice')}
-            className={`flex-1 p-3 flex justify-center items-center gap-2 text-sm font-bold ${mobileTab === 'dice' ? 'text-indigo-400 bg-zinc-900' : 'text-zinc-500'}`}
-        >
-            <Dices className="w-4 h-4" /> Dés
-        </button>
-        <button 
-            onClick={() => setMobileTab('chat')}
-            className={`flex-1 p-3 flex justify-center items-center gap-2 text-sm font-bold ${mobileTab === 'chat' ? 'text-indigo-400 bg-zinc-900' : 'text-zinc-500'}`}
-        >
-            <MessageSquare className="w-4 h-4" /> Jeu
-        </button>
-        <button 
-            onClick={() => setMobileTab('character')}
-            className={`flex-1 p-3 flex justify-center items-center gap-2 text-sm font-bold ${mobileTab === 'character' ? 'text-indigo-400 bg-zinc-900' : 'text-zinc-500'}`}
-        >
-            <Shield className="w-4 h-4" /> Perso
-        </button>
+        <button onClick={() => setMobileTab('dice')} className={`flex-1 p-3 flex justify-center items-center gap-2 text-sm font-bold ${mobileTab === 'dice' ? 'text-indigo-400 bg-zinc-900' : 'text-zinc-500'}`}><Dices className="w-4 h-4" /> Dés</button>
+        <button onClick={() => setMobileTab('chat')} className={`flex-1 p-3 flex justify-center items-center gap-2 text-sm font-bold ${mobileTab === 'chat' ? 'text-indigo-400 bg-zinc-900' : 'text-zinc-500'}`}><MessageSquare className="w-4 h-4" /> Jeu</button>
+        <button onClick={() => setMobileTab('character')} className={`flex-1 p-3 flex justify-center items-center gap-2 text-sm font-bold ${mobileTab === 'character' ? 'text-indigo-400 bg-zinc-900' : 'text-zinc-500'}`}><Shield className="w-4 h-4" /> Perso</button>
       </div>
 
       <div className="flex flex-1 md:flex-row relative overflow-hidden">
@@ -192,7 +240,16 @@ const VoiceInput = ({ initialCharacterSheet }) => {
                                 : 'bg-zinc-800 text-zinc-300 border border-zinc-700 rounded-bl-none font-serif'
                     }`}>
                         {msg.type === 'ai' && <span className="block text-xs text-zinc-500 mb-1 font-sans uppercase tracking-wider">Maître du Jeu</span>}
-                        {msg.type === 'ai' ? formatMessage(msg.text) : msg.text}
+                        
+                        {msg.type === 'ai' ? (
+                            <TypewriterText 
+                                text={msg.text} 
+                                isNew={msg.isNew} 
+                                onSkip={stopAudio}
+                            />
+                        ) : (
+                            msg.text
+                        )}
                     </div>
                 </div>
             ))}

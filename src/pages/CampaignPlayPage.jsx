@@ -318,7 +318,10 @@ export default function CampaignPlayPage() {
                     {/* SWITCH MODE */}
                     {mode === 'play' && character && (
                         <div className="w-full max-w-7xl h-full animate-in fade-in duration-700 slide-in-from-bottom-4">
-                            <VoiceInput initialCharacterSheet={character} />
+                            <VoiceInput 
+                                initialCharacterSheet={character} 
+                                initialHistory={campaign?.history || []}
+                            />
                         </div>
                     )}
 
