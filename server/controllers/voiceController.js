@@ -1,3 +1,4 @@
+import pool from '../config/db.js';
 import OpenAI from 'openai';
 import fs from 'fs';
 
@@ -25,25 +26,14 @@ export const transcribeAndChat = async (req, res) => {
       return res.status(400).json({ error: "Aucun fichier audio fourni" });
     }
 
+    const { campaignId } = req.body; // Needs to be sent from frontend
+
     // 1. Transcription (Whisper)
     const transcription = await client.audio.transcriptions.create({
       file: fs.createReadStream(req.file.path),
       model: "whisper-1",
       language: "fr",
     });
-
-import pool from '../config/db.js';
-
-// ... imports
-
-export const transcribeAndChat = async (req, res) => {
-  try {
-    const client = initOpenAI();
-    // ... (checks)
-
-    const { campaignId } = req.body; // Needs to be sent from frontend
-
-    // ... (transcription logic)
 
     const userText = transcription.text;
 
@@ -55,22 +45,7 @@ export const transcribeAndChat = async (req, res) => {
         );
     }
     
-    // ... (rest of the logic: history, summary, prompt)
-
-    // ... (AI generation)
-
-    const aiContent = completion.choices[0].message.content;
-    // ... (parsing)
-
-    // Save AI Message
-    if (campaignId && parsedResponse.text) {
-        await pool.query(
-            'INSERT INTO campaign_messages (campaign_id, role, content) VALUES ($1, $2, $3)',
-            [campaignId, 'assistant', parsedResponse.text]
-        );
-    }
-
-    // ... (image, audio, cleanup, response)
+    // Récupération du résumé, de l'historique et de la fiche de personnage
     let history = [];
     let summary = "";
     let characterSheet = null;
