@@ -20,11 +20,16 @@ RUN npm run build
 FROM node:20-alpine as production
 WORKDIR /app
 COPY package.json .
-RUN npm install --production
+
+# Install ONLY production dependencies (skipping postinstall/build scripts)
+RUN npm install --production --ignore-scripts
+
 # Copy backend structure
 COPY server ./server
-# Copy frontend build
+
+# Copy frontend build from builder stage
 COPY --from=builder /app/dist ./dist
 
 EXPOSE 3000
+# Run migrations before starting server
 CMD ["node", "server/index.js"]
