@@ -12,12 +12,39 @@ export const getCampaigns = async (req, res) => {
   }
 };
 
+export const getCampaign = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('SELECT * FROM campaigns WHERE id = $1', [id]);
+    
+    if (result.rows.length === 0) return res.status(404).json({ error: "Campaign not found" });
+    
+    const campaign = result.rows[0];
+    
+    // Check access (owner or player)
+    // For now, strict owner check for editing, but maybe relaxed for viewing?
+    // The query below gets players regardless.
+    
+    const playersResult = await pool.query(
+      `SELECT u.id, u.email, cp.character_name, cp.joined_at 
+       FROM campaign_players cp 
+       JOIN users u ON cp.user_id = u.id 
+       WHERE cp.campaign_id = $1`,
+      [id]
+    );
+    
+    res.json({ ...campaign, players: playersResult.rows });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+};
+
 export const createCampaign = async (req, res) => {
   try {
     const { name, system } = req.body;
     const result = await pool.query(
-      'INSERT INTO campaigns (name, system, user_id) VALUES ($1, $2, $3) RETURNING *',
-      [name, system, req.user.id]
+      'INSERT INTO campaigns (name, system, user_id, status) VALUES ($1, $2, $3, $4) RETURNING *',
+      [name, system, req.user.id, 'pending']
     );
     res.json(result.rows[0]);
   } catch (e) {
@@ -25,3 +52,70 @@ export const createCampaign = async (req, res) => {
   }
 };
 
+export const updateCampaign = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, system, description, status } = req.body;
+    
+    // Check ownership
+    const check = await pool.query('SELECT user_id FROM campaigns WHERE id = $1', [id]);
+    if (check.rows.length === 0) return res.status(404).json({ error: "Not found" });
+    if (check.rows[0].user_id !== req.user.id) return res.status(403).json({ error: "Unauthorized" });
+
+    const result = await pool.query(
+      `UPDATE campaigns 
+       SET name = COALESCE($1, name), 
+           system = COALESCE($2, system), 
+           description = COALESCE($3, description),
+           status = COALESCE($4, status)
+       WHERE id = $5 RETURNING *`,
+      [name, system, description, status, id]
+    );
+    res.json(result.rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+};
+
+export const addPlayer = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { email } = req.body;
+
+    // Check campaign status and ownership
+    const campRes = await pool.query('SELECT * FROM campaigns WHERE id = $1', [id]);
+    if (campRes.rows.length === 0) return res.status(404).json({ error: "Campaign not found" });
+    
+    const campaign = campRes.rows[0];
+    if (campaign.user_id !== req.user.id) return res.status(403).json({ error: "Unauthorized" });
+    
+    if (campaign.status !== 'pending') {
+      return res.status(400).json({ error: "Cannot add players to a started campaign" });
+    }
+
+    // Find user
+    const userRes = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (userRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
+    
+    const newPlayerId = userRes.rows[0].id;
+
+    // Add to campaign_players
+    await pool.query(
+      'INSERT INTO campaign_players (campaign_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [id, newPlayerId]
+    );
+
+    // Return updated player list
+    const playersResult = await pool.query(
+      `SELECT u.id, u.email, cp.character_name, cp.joined_at 
+       FROM campaign_players cp 
+       JOIN users u ON cp.user_id = u.id 
+       WHERE cp.campaign_id = $1`,
+      [id]
+    );
+    
+    res.json(playersResult.rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+};

@@ -2,9 +2,11 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import 'dotenv/config'; // Charger les variables d'environnement
 
 import authRoutes from './routes/authRoutes.js';
 import campaignRoutes from './routes/campaignRoutes.js';
+import voiceRoutes from './routes/voiceRoutes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,6 +19,7 @@ app.use(cors());
 
 app.use('/api', authRoutes);
 app.use('/api/campaigns', campaignRoutes);
+app.use('/api/voice', voiceRoutes);
 
 // Serve Frontend
 app.use(express.static(path.join(rootDir, 'dist')));

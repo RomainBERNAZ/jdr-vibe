@@ -28,6 +28,13 @@ export const campaignApi = {
     });
     return res.json();
   },
+  get: async (token, id) => {
+    const res = await fetch(`${API_URL}/campaigns/${id}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) throw await res.json();
+    return res.json();
+  },
   create: async (token, name) => {
     const res = await fetch(`${API_URL}/campaigns`, {
       method: 'POST',
@@ -38,6 +45,29 @@ export const campaignApi = {
       body: JSON.stringify({ name, system: 'D&D 5e' })
     });
     return res.json();
+  },
+  update: async (token, id, data) => {
+    const res = await fetch(`${API_URL}/campaigns/${id}`, {
+      method: 'PUT',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}` 
+      },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw await res.json();
+    return res.json();
+  },
+  addPlayer: async (token, id, email) => {
+    const res = await fetch(`${API_URL}/campaigns/${id}/players`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}` 
+      },
+      body: JSON.stringify({ email })
+    });
+    if (!res.ok) throw await res.json();
+    return res.json();
   }
 };
-

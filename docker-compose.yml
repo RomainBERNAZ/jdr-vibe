@@ -15,17 +15,23 @@ services:
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
 
   app:
-    build: .
+    build:
+      context: .
+      target: development
     container_name: aether_app
     ports:
       - "3000:3000"
+      - "5173:5173"
+    volumes:
+      - .:/app
+      - /app/node_modules
     environment:
       DATABASE_URL: postgres://admin:rpgpassword@db:5432/aether_rpg
       JWT_SECRET: secret_key_super_secure
+      CHOKIDAR_USEPOLLING: "true"
     depends_on:
       - db
     restart: unless-stopped
 
 volumes:
   postgres_data:
-
