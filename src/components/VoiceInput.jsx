@@ -17,6 +17,24 @@ const VoiceInput = ({ initialCharacterSheet }) => {
   const chunksRef = useRef([]);
   const chatContainerRef = useRef(null);
 
+  const formatMessage = (text) => {
+    if (!text) return null;
+    return text.split('\n').map((line, i) => {
+        const trimmed = line.trim();
+        if (!trimmed) return <div key={i} className="h-2" />;
+        
+        // Détection des choix (tiret, étoile, chiffre)
+        if (trimmed.match(/^[-*•]\s/) || trimmed.match(/^\d+\.\s/)) {
+            return (
+                <div key={i} className="my-2 ml-2 md:ml-4 p-3 bg-black/40 border-l-4 border-indigo-500 rounded-r-lg text-indigo-100 shadow-sm hover:bg-zinc-900/60 transition-colors font-sans">
+                    {line}
+                </div>
+            );
+        }
+        return <p key={i} className="mb-2">{line}</p>;
+    });
+  };
+
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -174,7 +192,7 @@ const VoiceInput = ({ initialCharacterSheet }) => {
                                 : 'bg-zinc-800 text-zinc-300 border border-zinc-700 rounded-bl-none font-serif'
                     }`}>
                         {msg.type === 'ai' && <span className="block text-xs text-zinc-500 mb-1 font-sans uppercase tracking-wider">Maître du Jeu</span>}
-                        {msg.text}
+                        {msg.type === 'ai' ? formatMessage(msg.text) : msg.text}
                     </div>
                 </div>
             ))}
