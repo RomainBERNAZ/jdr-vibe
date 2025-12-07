@@ -22,20 +22,23 @@ export const transcribeAndChat = async (req, res) => {
       return res.status(500).json({ error: "Clé API OpenAI manquante dans les variables d'environnement" });
     }
 
-    if (!req.file) {
-      return res.status(400).json({ error: "Aucun fichier audio fourni" });
+    let userText = "";
+
+    // 1. Transcription (Whisper) ou Récupération Texte
+    if (req.file) {
+        const transcription = await client.audio.transcriptions.create({
+            file: fs.createReadStream(req.file.path),
+            model: "whisper-1",
+            language: "fr",
+        });
+        userText = transcription.text;
+    } else if (req.body.text) {
+        userText = req.body.text;
+    } else {
+        return res.status(400).json({ error: "Aucune entrée (audio ou texte) fournie" });
     }
 
-    const { campaignId } = req.body; // Needs to be sent from frontend
-
-    // 1. Transcription (Whisper)
-    const transcription = await client.audio.transcriptions.create({
-      file: fs.createReadStream(req.file.path),
-      model: "whisper-1",
-      language: "fr",
-    });
-
-    const userText = transcription.text;
+    const { campaignId, enableAudio } = req.body; // enableAudio is string 'true'/'false' in FormData
 
     // Save User Message
     if (campaignId) {
@@ -159,29 +162,35 @@ TON STYLE :
     }
     */
 
-    // 4. Génération Audio (TTS)
+    // 4. Génération Audio (TTS) - Optionnelle
     let audioContent = null;
-    try {
-        const mp3 = await client.audio.speech.create({
-            model: "tts-1-hd",
-            voice: "onyx",
-            speed: 0.9, // Ralentir un peu pour l'effet "vieux conteur"
-            input: parsedResponse.text,
-        });
-        const buffer = Buffer.from(await mp3.arrayBuffer());
-        audioContent = buffer.toString('base64');
-    } catch (ttsError) {
-        console.error("Erreur TTS:", ttsError);
+    const isAudioEnabled = enableAudio === 'true' || enableAudio === true; // Handle potential boolean or string
+    
+    if (isAudioEnabled) {
+        try {
+            const mp3 = await client.audio.speech.create({
+                model: "tts-1-hd",
+                voice: "onyx",
+                speed: 0.9, // Ralentir un peu pour l'effet "vieux conteur"
+                input: parsedResponse.text,
+            });
+            const buffer = Buffer.from(await mp3.arrayBuffer());
+            audioContent = buffer.toString('base64');
+        } catch (ttsError) {
+            console.error("Erreur TTS:", ttsError);
+        }
     }
 
     // Nettoyage
-    fs.unlinkSync(req.file.path);
+    if (req.file && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+    }
 
     res.json({
       userText: userText,
       aiResponse: parsedResponse.text,
       imageUrl: imageUrl,
-      audio: audioContent, // Renvoie l'audio en base64
+      audio: audioContent, // Renvoie l'audio en base64 ou null
       newSummary: newSummary,
       characterSheet: parsedResponse.characterSheet,
       diceRoll: parsedResponse.diceRoll || null

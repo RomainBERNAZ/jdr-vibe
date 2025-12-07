@@ -35,14 +35,18 @@ export const campaignApi = {
     if (!res.ok) throw await res.json();
     return res.json();
   },
-  create: async (token, name) => {
+  create: async (token, data) => {
+    const payload = typeof data === 'string' 
+        ? { name: data, system: 'D&D 5e' } 
+        : { system: 'D&D 5e', ...data };
+
     const res = await fetch(`${API_URL}/campaigns`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}` 
       },
-      body: JSON.stringify({ name, system: 'D&D 5e' })
+      body: JSON.stringify(payload)
     });
     return res.json();
   },

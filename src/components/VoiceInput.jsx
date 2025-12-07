@@ -1,39 +1,47 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic, Square, Loader2, MessageSquare, Shield, Heart, Coins, Backpack, Sword, Dices, FastForward } from 'lucide-react';
+import { Mic, Square, Loader2, MessageSquare, Shield, Heart, Coins, Backpack, Sword, Dices, FastForward, Send } from 'lucide-react';
 import DiceBox from './DiceBox';
 import { useParams } from 'react-router-dom';
 
 const TypewriterText = ({ text, onComplete, isNew, onSkip }) => {
-    const [displayedText, setDisplayedText] = useState(isNew ? '' : text);
+    const [charIndex, setCharIndex] = useState(isNew ? 0 : text.length);
     const [isSkipped, setIsSkipped] = useState(!isNew);
-    const indexRef = useRef(0);
-
+    
     useEffect(() => {
         if (!isNew || isSkipped) {
-            setDisplayedText(text);
+            setCharIndex(text.length);
             onComplete?.();
             return;
         }
 
+        // Reset index if text changes fundamentally (though normally handled by parent key)
+        if (isNew && charIndex === text.length) {
+             setCharIndex(0);
+        }
+
         const interval = setInterval(() => {
-            if (indexRef.current < text.length) {
-                setDisplayedText(prev => prev + text.charAt(indexRef.current));
-                indexRef.current++;
-            } else {
+            setCharIndex(prev => {
+                if (prev < text.length) {
+                    return prev + 1;
+                }
                 clearInterval(interval);
                 onComplete?.();
-            }
-        }, 30); // Vitesse de frappe (~30ms par caractère)
+                return prev;
+            });
+        }, 20); // Un peu plus rapide pour fluidifier
 
         return () => clearInterval(interval);
-    }, [text, isNew, isSkipped, onComplete]);
+    }, [text, isNew, isSkipped]); // onComplete removed from deps to avoid re-trigger loops if stable
+
+    const displayedText = text.slice(0, charIndex);
 
     // Fonction de formatage locale pour gérer le rendu progressif
     const formatContent = (content) => {
         if (!content) return null;
-        return content.split('\n').map((line, i) => {
+        // Handle both \r\n and \n
+        return content.replace(/\r\n/g, '\n').split('\n').map((line, i) => {
             const trimmed = line.trim();
-            if (!trimmed) return <div key={i} className="h-2" />;
+            if (!trimmed) return <div key={i} className="h-4" />; // Plus d'espace pour les sauts de ligne vides
             
             if (trimmed.match(/^[-*•]\s/) || trimmed.match(/^\d+\.\s/)) {
                 return (
@@ -42,14 +50,14 @@ const TypewriterText = ({ text, onComplete, isNew, onSkip }) => {
                     </div>
                 );
             }
-            return <p key={i} className="mb-2">{line}</p>;
+            return <p key={i} className="mb-2 leading-relaxed">{line}</p>;
         });
     };
 
     return (
         <div className="relative group">
             {formatContent(displayedText)}
-            {isNew && !isSkipped && displayedText.length < text.length && (
+            {isNew && !isSkipped && charIndex < text.length && (
                 <button 
                     onClick={() => { setIsSkipped(true); onSkip?.(); }}
                     className="absolute bottom-0 right-0 translate-y-full bg-zinc-800 text-xs px-2 py-1 rounded text-zinc-400 hover:text-white hover:bg-zinc-700 flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -61,10 +69,11 @@ const TypewriterText = ({ text, onComplete, isNew, onSkip }) => {
     );
 };
 
-const VoiceInput = ({ initialCharacterSheet, initialHistory }) => {
+const VoiceInput = ({ initialCharacterSheet, initialHistory, audioEnabled = true }) => {
   const { id: campaignId } = useParams(); // Récupérer l'ID de la campagne depuis l'URL
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [inputText, setInputText] = useState("");
   
   // Initialiser la conversation avec l'historique chargé si présent
   const [conversation, setConversation] = useState(
@@ -101,6 +110,7 @@ const VoiceInput = ({ initialCharacterSheet, initialHistory }) => {
   };
 
   const startRecording = async () => {
+    if (!audioEnabled) return; // Sécurité si jamais l'UI permet le clic
     stopAudio(); // Arrêter l'audio précédent si on parle
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -111,7 +121,7 @@ const VoiceInput = ({ initialCharacterSheet, initialHistory }) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
 
-      mediaRecorderRef.current.onstop = handleStop;
+      mediaRecorderRef.current.onstop = () => handleSend(null); // Passer null pour indiquer que c'est de l'audio dans chunksRef
       mediaRecorderRef.current.start();
       setIsRecording(true);
     } catch (err) {
@@ -128,17 +138,23 @@ const VoiceInput = ({ initialCharacterSheet, initialHistory }) => {
     }
   };
 
-  const handleStop = async () => {
-    const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
+  const handleSend = async (manualText = null) => {
     setIsProcessing(true);
-
     const formData = new FormData();
-    formData.append('audio', audioBlob, 'recording.webm');
+
+    if (manualText) {
+        formData.append('text', manualText);
+    } else {
+        const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        formData.append('audio', audioBlob, 'recording.webm');
+    }
     
     // On envoie l'ID de la campagne pour la persistance
     if (campaignId) {
         formData.append('campaignId', campaignId);
     }
+
+    formData.append('enableAudio', audioEnabled);
 
     const historyToSend = conversation.slice(-10).map(msg => ({
         role: msg.type === 'user' ? 'user' : 'assistant',
@@ -169,8 +185,8 @@ const VoiceInput = ({ initialCharacterSheet, initialHistory }) => {
       if (data.newSummary) setSummary(data.newSummary);
       if (data.characterSheet) setCharacterSheet(data.characterSheet);
       
-      // Jouer l'audio du MJ
-      if (data.audio) {
+      // Jouer l'audio du MJ SEULEMENT si reçu et audioEnabled (le backend ne devrait pas l'envoyer de toute façon)
+      if (data.audio && audioEnabled) {
           stopAudio();
           try {
               const audio = new Audio(`data:audio/mp3;base64,${data.audio}`);
@@ -188,7 +204,14 @@ const VoiceInput = ({ initialCharacterSheet, initialHistory }) => {
       setConversation(prev => [...prev, { type: 'error', text: "Erreur de communication avec le MJ." }]);
     } finally {
       setIsProcessing(false);
+      setInputText(""); // Reset text input
     }
+  };
+
+  const handleTextSubmit = (e) => {
+    e.preventDefault();
+    if (!inputText.trim() || isProcessing) return;
+    handleSend(inputText);
   };
 
   return (
@@ -226,7 +249,7 @@ const VoiceInput = ({ initialCharacterSheet, initialHistory }) => {
                 <div className="text-center mt-20 text-zinc-600">
                     <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-20" />
                     <p className="italic">Le silence règne...</p>
-                    <p className="text-sm mt-2">Appuyez sur le bouton pour commencer l'aventure.</p>
+                    <p className="text-sm mt-2">Écrivez ou parlez pour commencer l'aventure.</p>
                 </div>
             )}
 
@@ -265,29 +288,64 @@ const VoiceInput = ({ initialCharacterSheet, initialHistory }) => {
         </div>
 
         {/* Barre de contrôles */}
-        <div className="p-6 bg-black/40 border-t border-zinc-800 flex justify-center items-center gap-4 backdrop-blur-sm">
-             {!isRecording ? (
-                <button 
-                    onClick={startRecording}
-                    disabled={isProcessing}
-                    className={`group relative flex items-center justify-center w-16 h-16 rounded-full transition-all ${
-                        isProcessing 
-                            ? 'bg-zinc-800 cursor-not-allowed' 
-                            : 'bg-indigo-600 hover:bg-indigo-500 hover:scale-105 shadow-[0_0_20px_rgba(79,70,229,0.3)]'
-                    }`}
-                >
-                    <Mic className={`w-6 h-6 text-white ${isProcessing ? 'opacity-50' : ''}`} />
-                    {!isProcessing && <span className="absolute -top-10 bg-zinc-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">Parler</span>}
-                </button>
-            ) : (
-                <button 
-                    onClick={stopRecording}
-                    className="group relative flex items-center justify-center w-16 h-16 rounded-full bg-red-500 hover:bg-red-600 hover:scale-105 transition-all shadow-[0_0_20px_rgba(239,68,68,0.4)] animate-pulse"
-                >
-                    <Square className="w-6 h-6 text-white fill-current" />
-                    <span className="absolute -top-10 bg-red-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">Arrêter</span>
-                </button>
-            )}
+        <div className="p-4 bg-black/40 border-t border-zinc-800 backdrop-blur-sm">
+             <div className="flex items-end gap-3 max-w-3xl mx-auto">
+                {/* Input Texte */}
+                <form onSubmit={handleTextSubmit} className="flex-1 relative">
+                    <textarea 
+                        value={inputText}
+                        onChange={(e) => setInputText(e.target.value)}
+                        placeholder="Décrivez vos actions ou dialoguez..."
+                        className="w-full bg-zinc-900/80 border border-zinc-700 text-white rounded-xl px-4 py-3 pr-12 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 resize-none min-h-[56px] max-h-32 scrollbar-thin"
+                        rows={1}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                handleTextSubmit(e);
+                            }
+                        }}
+                    />
+                    <button 
+                        type="submit"
+                        disabled={!inputText.trim() || isProcessing}
+                        className="absolute right-2 bottom-2 p-2 text-indigo-400 hover:text-white hover:bg-indigo-600 rounded-lg transition-colors disabled:opacity-50 disabled:hover:bg-transparent"
+                    >
+                        <Send className="w-5 h-5" />
+                    </button>
+                </form>
+
+                {/* Bouton Micro (si audioEnabled) */}
+                {audioEnabled && (
+                    <div className="shrink-0">
+                        {!isRecording ? (
+                            <button 
+                                onClick={startRecording}
+                                disabled={isProcessing}
+                                className={`flex items-center justify-center w-14 h-14 rounded-full transition-all ${
+                                    isProcessing 
+                                        ? 'bg-zinc-800 cursor-not-allowed' 
+                                        : 'bg-indigo-600 hover:bg-indigo-500 shadow-lg shadow-indigo-900/30'
+                                }`}
+                                title="Maintenir pour parler"
+                            >
+                                <Mic className={`w-6 h-6 text-white ${isProcessing ? 'opacity-50' : ''}`} />
+                            </button>
+                        ) : (
+                            <button 
+                                onClick={stopRecording}
+                                className="flex items-center justify-center w-14 h-14 rounded-full bg-red-500 hover:bg-red-600 animate-pulse shadow-lg shadow-red-900/30"
+                            >
+                                <Square className="w-5 h-5 text-white fill-current" />
+                            </button>
+                        )}
+                    </div>
+                )}
+             </div>
+             {!audioEnabled && (
+                 <div className="text-center mt-2">
+                     <span className="text-xs text-zinc-600">Mode silencieux (Audio désactivé)</span>
+                 </div>
+             )}
         </div>
       </div>
 

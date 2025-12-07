@@ -42,10 +42,10 @@ export const getCampaign = async (req, res) => {
 
 export const createCampaign = async (req, res) => {
   try {
-    const { name, system } = req.body;
+    const { name, system, audio_enabled } = req.body;
     const result = await pool.query(
-      'INSERT INTO campaigns (name, system, user_id, status) VALUES ($1, $2, $3, $4) RETURNING *',
-      [name, system, req.user.id, 'pending']
+      'INSERT INTO campaigns (name, system, user_id, status, audio_enabled) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [name, system, req.user.id, 'pending', audio_enabled !== undefined ? audio_enabled : true]
     );
     res.json(result.rows[0]);
   } catch (e) {

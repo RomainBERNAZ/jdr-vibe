@@ -22,6 +22,7 @@ const TabButton = ({ active, onClick, icon: Icon, label }) => (
 const CampaignList = ({ token, navigate }) => {
     const [campaigns, setCampaigns] = useState([]);
     const [newCampName, setNewCampName] = useState('');
+    const [audioEnabled, setAudioEnabled] = useState(true);
 
     useEffect(() => {
         campaignApi.list(token)
@@ -33,9 +34,10 @@ const CampaignList = ({ token, navigate }) => {
         e.preventDefault();
         if(!newCampName) return;
         try {
-            const newCamp = await campaignApi.create(token, newCampName);
+            const newCamp = await campaignApi.create(token, { name: newCampName, audio_enabled: audioEnabled });
             setCampaigns([newCamp, ...campaigns]);
             setNewCampName('');
+            setAudioEnabled(true);
         } catch (err) {
             console.error("Failed to create campaign", err);
         }
@@ -58,15 +60,26 @@ const CampaignList = ({ token, navigate }) => {
                     <h2 className="text-2xl font-bold text-white">Vos Campagnes</h2>
                     <p className="text-zinc-400">Gérez vos aventures et invitez vos joueurs.</p>
                 </div>
-                <form onSubmit={handleCreate} className="flex gap-2 w-full md:w-auto">
-                    <input 
-                        value={newCampName} onChange={e => setNewCampName(e.target.value)}
-                        placeholder="Nouvelle campagne..." 
-                        className="bg-zinc-900 border border-zinc-700 px-4 py-2 rounded-lg outline-none focus:border-indigo-500 flex-1 md:w-64 text-white"
-                    />
-                    <button className="bg-white text-black px-4 py-2 rounded-lg font-bold hover:bg-zinc-200 shrink-0 flex items-center gap-2">
-                        <Plus className="w-5 h-5" /> Créer
-                    </button>
+                <form onSubmit={handleCreate} className="flex flex-col gap-2 w-full md:w-auto">
+                    <div className="flex gap-2">
+                        <input 
+                            value={newCampName} onChange={e => setNewCampName(e.target.value)}
+                            placeholder="Nouvelle campagne..." 
+                            className="bg-zinc-900 border border-zinc-700 px-4 py-2 rounded-lg outline-none focus:border-indigo-500 flex-1 md:w-64 text-white"
+                        />
+                        <button className="bg-white text-black px-4 py-2 rounded-lg font-bold hover:bg-zinc-200 shrink-0 flex items-center gap-2">
+                            <Plus className="w-5 h-5" /> Créer
+                        </button>
+                    </div>
+                    <label className="flex items-center gap-2 text-zinc-400 text-xs cursor-pointer select-none">
+                        <input 
+                            type="checkbox" 
+                            checked={audioEnabled}
+                            onChange={e => setAudioEnabled(e.target.checked)}
+                            className="accent-indigo-600 rounded bg-zinc-800 border-zinc-700"
+                        />
+                        Activer la voix du MJ (Audio)
+                    </label>
                 </form>
             </div>
 

@@ -321,6 +321,7 @@ export default function CampaignPlayPage() {
                             <VoiceInput 
                                 initialCharacterSheet={character} 
                                 initialHistory={campaign?.history || []}
+                                audioEnabled={campaign?.audio_enabled}
                             />
                         </div>
                     )}

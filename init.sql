@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
     system VARCHAR(100) DEFAULT 'D&D 5e',
     description TEXT,
     status VARCHAR(50) DEFAULT 'pending', -- pending, active, completed
+    audio_enabled BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
