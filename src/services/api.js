@@ -62,15 +62,23 @@ export const campaignApi = {
     if (!res.ok) throw await res.json();
     return res.json();
   },
-  delete: async (token, id) => {
-    const res = await fetch(`${API_URL}/campaigns/${id}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (!res.ok) throw await res.json();
-    return res.json();
-  },
-  addPlayer: async (token, id, email) => {
+    delete: async (token, id) => {
+        const res = await fetch(`${API_URL}/campaigns/${id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) throw await res.json();
+        return res.json();
+    },
+    closeChapter: async (token, id) => {
+        const res = await fetch(`${API_URL}/campaigns/${id}/chapters`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) throw await res.json();
+        return res.json();
+    },
+    addPlayer: async (token, id, email) => {
     const res = await fetch(`${API_URL}/campaigns/${id}/players`, {
       method: 'POST',
       headers: { 

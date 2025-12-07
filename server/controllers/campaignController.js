@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { generateChapterSummary } from '../services/openaiService.js';
 
 export const getCampaigns = async (req, res) => {
   try {
@@ -29,12 +30,24 @@ export const getCampaign = async (req, res) => {
       [id]
     );
 
-    const messagesResult = await pool.query(
-      'SELECT * FROM campaign_messages WHERE campaign_id = $1 ORDER BY created_at ASC LIMIT 50',
+    // Charger les chapitres archivés
+    const chaptersResult = await pool.query(
+      'SELECT * FROM campaign_chapters WHERE campaign_id = $1 ORDER BY created_at ASC',
+      [id]
+    );
+
+    // Charger uniquement les messages du chapitre actif (non archivés)
+    const activeMessagesResult = await pool.query(
+      'SELECT * FROM campaign_messages WHERE campaign_id = $1 AND chapter_id IS NULL ORDER BY created_at ASC',
       [id]
     );
     
-    res.json({ ...campaign, players: playersResult.rows, history: messagesResult.rows });
+    res.json({ 
+        ...campaign, 
+        players: playersResult.rows, 
+        history: activeMessagesResult.rows,
+        chapters: chaptersResult.rows
+    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -130,4 +143,53 @@ export const addPlayer = async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+};
+
+export const closeChapter = async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        // Check ownership
+        const check = await pool.query('SELECT user_id FROM campaigns WHERE id = $1', [id]);
+        if (check.rows.length === 0) return res.status(404).json({ error: "Not found" });
+        if (check.rows[0].user_id !== req.user.id) return res.status(403).json({ error: "Unauthorized" });
+
+        // 1. Get current messages (chapter_id IS NULL)
+        const messagesRes = await pool.query(
+            'SELECT role, content FROM campaign_messages WHERE campaign_id = $1 AND chapter_id IS NULL ORDER BY created_at ASC',
+            [id]
+        );
+        const messages = messagesRes.rows;
+        
+        if (messages.length === 0) return res.status(400).json({ error: "Aucun message à archiver. Jouez d'abord !" });
+
+        // 2. Generate Summary via OpenAI
+        let chapterData;
+        try {
+            chapterData = await generateChapterSummary(messages);
+        } catch (err) {
+            console.error("OpenAI Error:", err);
+            return res.status(500).json({ error: "Erreur lors de la génération du résumé." });
+        }
+        
+        const { title, summary } = chapterData;
+
+        // 3. Create Chapter
+        const chapterRes = await pool.query(
+            'INSERT INTO campaign_chapters (campaign_id, title, summary) VALUES ($1, $2, $3) RETURNING *',
+            [id, title, summary]
+        );
+        const chapter = chapterRes.rows[0];
+
+        // 4. Update messages to archive them
+        await pool.query(
+            'UPDATE campaign_messages SET chapter_id = $1 WHERE campaign_id = $2 AND chapter_id IS NULL',
+            [chapter.id, id]
+        );
+
+        res.json({ message: "Chapitre clôturé avec succès", chapter });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: e.message });
+    }
 };

@@ -46,5 +46,14 @@ CREATE TABLE IF NOT EXISTS campaign_messages (
     campaign_id INTEGER REFERENCES campaigns(id) ON DELETE CASCADE,
     role VARCHAR(50) NOT NULL, -- 'user', 'assistant'
     content TEXT NOT NULL,
+    chapter_id INTEGER REFERENCES campaign_chapters(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS campaign_chapters (
+    id SERIAL PRIMARY KEY,
+    campaign_id INTEGER REFERENCES campaigns(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    summary TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

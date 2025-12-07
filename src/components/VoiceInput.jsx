@@ -69,7 +69,7 @@ const TypewriterText = ({ text, onComplete, isNew, onSkip }) => {
     );
 };
 
-const VoiceInput = ({ initialCharacterSheet, initialHistory, audioEnabled = true }) => {
+const VoiceInput = ({ initialCharacterSheet, initialHistory, initialSummary, audioEnabled = true }) => {
   const { id: campaignId } = useParams(); // Récupérer l'ID de la campagne depuis l'URL
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -84,9 +84,13 @@ const VoiceInput = ({ initialCharacterSheet, initialHistory, audioEnabled = true
       })) : []
   );
   
-  const [summary, setSummary] = useState(""); 
+  const [summary, setSummary] = useState(initialSummary || ""); 
   const [characterSheet, setCharacterSheet] = useState(initialCharacterSheet || null); 
   const [diceRoll, setDiceRoll] = useState(null); 
+  
+  // New State for Game Mechanics
+  const [gameState, setGameState] = useState(null);
+  const [diceRequest, setDiceRequest] = useState(null);
   
   const [mobileTab, setMobileTab] = useState('chat');
 
@@ -165,6 +169,10 @@ const VoiceInput = ({ initialCharacterSheet, initialHistory, audioEnabled = true
     if(characterSheet) {
         formData.append('characterSheet', JSON.stringify(characterSheet));
     }
+    // Envoyer l'état du jeu persistant
+    if(gameState) {
+        formData.append('gameState', JSON.stringify(gameState));
+    }
 
     try {
       const response = await fetch('/api/voice/chat', {
@@ -185,6 +193,14 @@ const VoiceInput = ({ initialCharacterSheet, initialHistory, audioEnabled = true
       if (data.newSummary) setSummary(data.newSummary);
       if (data.characterSheet) setCharacterSheet(data.characterSheet);
       
+      // Mise à jour Mécaniques
+      if (data.gameState) setGameState(data.gameState);
+      if (data.diceRequest) {
+          setDiceRequest(data.diceRequest);
+          // Auto-switch to dice tab on mobile ?
+          // setMobileTab('dice'); 
+      }
+      
       // Jouer l'audio du MJ SEULEMENT si reçu et audioEnabled (le backend ne devrait pas l'envoyer de toute façon)
       if (data.audio && audioEnabled) {
           stopAudio();
@@ -197,7 +213,7 @@ const VoiceInput = ({ initialCharacterSheet, initialHistory, audioEnabled = true
           }
       }
 
-      if (data.diceRoll) setDiceRoll(data.diceRoll);
+      if (data.diceRoll) setDiceRoll(data.diceRoll); // Legacy visual
 
     } catch (error) {
       console.error("Erreur:", error);
@@ -214,9 +230,40 @@ const VoiceInput = ({ initialCharacterSheet, initialHistory, audioEnabled = true
     handleSend(inputText);
   };
 
+  const handleManualRoll = () => {
+    if (!diceRequest) return;
+    
+    const sides = parseInt(diceRequest.type.substring(1)) || 20;
+    const result = Math.floor(Math.random() * sides) + 1;
+    
+    // Feedback visuel rapide (On pourrait améliorer ça avec une animation plus tard)
+    setDiceRoll({ type: diceRequest.type, value: result }); // Trigger visual in DiceBox if supported
+    
+    // Envoyer le résultat
+    const message = `[SYSTÈME] J'ai lancé les dés pour ${diceRequest.stat}. Résultat : ${result}`;
+    handleSend(message);
+    setDiceRequest(null); // Clear request
+  };
+
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden shadow-2xl max-w-7xl mx-auto mb-4 h-[85vh] flex flex-col relative">
       
+      {/* DICE REQUEST OVERLAY */}
+      {diceRequest && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-indigo-600 text-white px-6 py-3 rounded-full shadow-lg z-50 flex items-center gap-4 animate-bounce border-2 border-indigo-400">
+            <div className="flex flex-col">
+                <span className="font-bold text-sm uppercase tracking-wide">Jet Requis</span>
+                <span className="font-bold text-lg">{diceRequest.stat} ({diceRequest.type})</span>
+            </div>
+            <button 
+                onClick={handleManualRoll}
+                className="bg-white text-indigo-700 font-bold px-4 py-2 rounded-lg hover:bg-zinc-100 transition shadow-sm flex items-center gap-2"
+            >
+                <Dices className="w-5 h-5" /> Lancer
+            </button>
+        </div>
+      )}
+
       {/* MOBILE TABS HEADER */}
       <div className="md:hidden flex border-b border-zinc-800 bg-black z-30 relative shrink-0">
         <button onClick={() => setMobileTab('dice')} className={`flex-1 p-3 flex justify-center items-center gap-2 text-sm font-bold ${mobileTab === 'dice' ? 'text-indigo-400 bg-zinc-900' : 'text-zinc-500'}`}><Dices className="w-4 h-4" /> Dés</button>
@@ -233,8 +280,15 @@ const VoiceInput = ({ initialCharacterSheet, initialHistory, audioEnabled = true
                 <Dices className="w-4 h-4" /> Zone de Lancer
             </h3>
         </div>
-        <div className="flex-1 w-full h-full">
-            <DiceBox rollTrigger={diceRoll} />
+        <div className="flex-1 w-full h-full flex items-center justify-center">
+             {/* Fallback si DiceBox n'est pas assez visible ou pour le 2D simple */}
+             {diceRoll && (
+                <div className="text-center animate-in zoom-in duration-300">
+                    <div className="text-6xl font-bold text-indigo-500 mb-2">{diceRoll.value}</div>
+                    <div className="text-zinc-500 text-sm uppercase tracking-widest">{diceRoll.type || "D20"}</div>
+                </div>
+             )}
+            {/* <DiceBox rollTrigger={diceRoll} />  <-- Peut être réactivé si fonctionnel */}
         </div>
       </div>
 

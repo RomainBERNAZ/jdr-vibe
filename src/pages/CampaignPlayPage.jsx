@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Users } from 'lucide-react';
+import { ArrowLeft, Users, BookOpen } from 'lucide-react';
 import * as THREE from 'three';
 import { useAuth } from '../context/AuthContext';
 import { campaignApi, characterApi } from '../services/api';
@@ -161,6 +161,19 @@ export default function CampaignPlayPage() {
         }
     };
 
+    const handleCloseChapter = async () => {
+        if (!window.confirm("Voulez-vous clôturer ce chapitre ?\n\n- L'IA générera un résumé de vos aventures.\n- L'historique du chat sera archivé.\n- Un nouveau chapitre commencera.")) return;
+        
+        try {
+            await campaignApi.closeChapter(token, id);
+            // Recharger la page pour repartir à zéro
+            window.location.reload();
+        } catch (e) {
+            console.error(e);
+            alert("Erreur lors de la clôture du chapitre");
+        }
+    };
+
     // 3D SCENE EFFECT
     useEffect(() => {
         if (!mountRef.current) return;
@@ -296,6 +309,10 @@ export default function CampaignPlayPage() {
     }, []);
 
     if (mode === 'loading') return <div className="bg-black h-screen flex items-center justify-center text-white">Chargement du plan d'existence...</div>;
+    
+    // Get last chapter summary if history is empty
+    const lastChapter = campaign?.chapters?.[campaign.chapters.length - 1];
+    const initialSummary = (!campaign?.history || campaign.history.length === 0) ? (lastChapter?.summary || "") : "";
 
     return (
         <div className="h-screen w-full bg-zinc-950 relative overflow-hidden">
@@ -308,10 +325,19 @@ export default function CampaignPlayPage() {
 
             {/* Content Layer */}
             <div className="relative z-20 h-full flex flex-col">
-                <div className="absolute top-2 left-2 md:top-4 md:left-4">
+                <div className="absolute top-2 left-2 md:top-4 md:left-4 flex gap-2">
                     <button onClick={() => navigate('/')} className="bg-zinc-900/80 text-white p-2 rounded hover:bg-indigo-600 transition border border-zinc-700">
                         <ArrowLeft className="w-5 h-5" />
                     </button>
+                    {mode === 'play' && (
+                        <button 
+                            onClick={handleCloseChapter}
+                            className="bg-zinc-900/80 text-indigo-400 p-2 rounded hover:bg-indigo-600 hover:text-white transition border border-zinc-700 flex items-center gap-2 text-sm font-medium"
+                            title="Terminer le chapitre et archiver l'histoire"
+                        >
+                            <BookOpen className="w-4 h-4" /> <span className="hidden md:inline">Finir Chapitre</span>
+                        </button>
+                    )}
                 </div>
 
                 <div className="flex-1 flex items-center justify-center p-2 md:p-8 h-full overflow-hidden">
@@ -321,6 +347,7 @@ export default function CampaignPlayPage() {
                             <VoiceInput 
                                 initialCharacterSheet={character} 
                                 initialHistory={campaign?.history || []}
+                                initialSummary={initialSummary}
                                 audioEnabled={campaign?.audio_enabled}
                             />
                         </div>
