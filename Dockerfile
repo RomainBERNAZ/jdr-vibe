@@ -29,6 +29,7 @@ COPY server ./server
 # Copy database init script and migrations
 COPY init.sql .
 COPY migration_add_missing_columns.sql .
+COPY migration_add_assets_table.sql .
 
 # Copy frontend build from builder stage
 COPY --from=builder /app/dist ./dist
