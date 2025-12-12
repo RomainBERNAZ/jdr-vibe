@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { campaignApi, characterApi } from '../services/api';
 import VoiceInput from '../components/VoiceInput';
 import CharacterCreationModal from '../components/CharacterCreationModal';
+import CharacterSelectionModal from '../components/CharacterSelectionModal';
 
 // --- UTILS ---
 const generatePixelTexture = (type) => {
