@@ -30,3 +30,4 @@ const runMigrations = async () => {
 
 export default runMigrations;
 
+

@@ -8,7 +8,7 @@ import {
     addPlayer,
     closeChapter // Import
 } from '../controllers/campaignController.js';
-import { authenticateToken } from '../middleware/authMiddleware.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 

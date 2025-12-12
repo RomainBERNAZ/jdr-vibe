@@ -43,13 +43,16 @@ const CampaignList = ({ token, navigate }) => {
         }
     };
 
-    const handleDelete = async (id) => {
-        if(!window.confirm("Êtes-vous sûr de vouloir supprimer cette campagne ?")) return;
+    const handleDelete = async (id, e) => {
+        e.stopPropagation();
+        // Remplacement temporaire du confirm natif qui bloque
+        // TODO: Implémenter une modale custom
         try {
             await campaignApi.delete(token, id);
-            setCampaigns(campaigns.filter(c => c.id !== id));
+            setCampaigns(prev => prev.filter(c => c.id !== id));
         } catch(err) {
-            console.error(err);
+            console.error("Erreur suppression:", err);
+            alert("Erreur lors de la suppression : " + (err.message || "Erreur inconnue"));
         }
     };
 
@@ -86,9 +89,9 @@ const CampaignList = ({ token, navigate }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {campaigns.map(camp => (
                     <div key={camp.id} className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-xl hover:border-indigo-500/50 transition-all group relative flex flex-col">
-                        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="absolute top-2 right-2 flex gap-1 z-50 pointer-events-auto">
                              <button 
-                                onClick={() => handleDelete(camp.id)}
+                                onClick={(e) => handleDelete(camp.id, e)}
                                 className="p-1.5 bg-zinc-800 hover:bg-red-600 rounded text-zinc-400 hover:text-white transition-colors"
                                 title="Supprimer"
                             >

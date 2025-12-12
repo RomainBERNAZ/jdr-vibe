@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Users, BookOpen } from 'lucide-react';
+import { ArrowLeft, Users, BookOpen, CheckCircle } from 'lucide-react';
 import * as THREE from 'three';
 import { useAuth } from '../context/AuthContext';
 import { campaignApi, characterApi } from '../services/api';
@@ -57,40 +57,33 @@ const generatePixelTexture = (type) => {
     return texture;
 };
 
-const CharacterSelectionModal = ({ characters, onSelect, onCreateNew }) => (
-    <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl max-w-lg w-full animate-in fade-in slide-in-from-bottom-4">
-        <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
-            <Users className="text-indigo-500" /> Choisir un Aventurier
-        </h2>
-        <p className="text-zinc-400 mb-6">Sélectionnez un personnage existant pour rejoindre cette aventure.</p>
-        
-        <div className="space-y-3 max-h-64 overflow-y-auto pr-2 mb-6 scrollbar-thin scrollbar-thumb-zinc-700">
-            {characters.length === 0 ? (
-                <p className="text-zinc-500 italic text-center py-4">Aucun personnage disponible.</p>
-            ) : (
-                characters.map(char => (
-                    <button 
-                        key={char.id}
-                        onClick={() => onSelect(char)}
-                        className="w-full flex justify-between items-center p-3 bg-black border border-zinc-800 rounded hover:border-indigo-500 hover:bg-zinc-900 transition-all group text-left"
-                    >
-                        <div>
-                            <div className="font-bold text-indigo-100">{char.name}</div>
-                            <div className="text-xs text-zinc-500">{char.race} {char.class} (Niv. {char.level})</div>
+const ChaptersModal = ({ chapters, onClose }) => (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in p-4">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl">
+            <div className="p-6 border-b border-zinc-800 flex justify-between items-center shrink-0">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <BookOpen className="text-indigo-500" /> Chroniques
+                </h2>
+                <button onClick={onClose} className="text-zinc-400 hover:text-white">
+                    Fermer
+                </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                {chapters.length === 0 ? (
+                    <p className="text-zinc-500 text-center italic">Aucun chapitre archivé.</p>
+                ) : (
+                    chapters.map((chap, i) => (
+                        <div key={chap.id} className="border-l-2 border-indigo-500 pl-4 pb-6 last:pb-0">
+                            <div className="flex items-center gap-2 mb-2">
+                                <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Chapitre {i + 1}</span>
+                                <span className="text-zinc-600 text-xs">• {new Date(chap.created_at).toLocaleDateString()}</span>
+                            </div>
+                            <h3 className="text-lg font-bold text-white mb-2">{chap.title}</h3>
+                            <p className="text-zinc-300 text-sm leading-relaxed whitespace-pre-wrap">{chap.summary}</p>
                         </div>
-                        <span className="text-xs bg-indigo-900/30 text-indigo-400 px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">Choisir</span>
-                    </button>
-                ))
-            )}
-        </div>
-
-        <div className="flex flex-col gap-3 pt-4 border-t border-zinc-800">
-            <button 
-                onClick={onCreateNew}
-                className="w-full py-3 bg-white text-black font-bold rounded hover:bg-zinc-200 transition-colors"
-            >
-                Créer un nouveau personnage
-            </button>
+                    ))
+                )}
+            </div>
         </div>
     </div>
 );
@@ -102,6 +95,7 @@ export default function CampaignPlayPage() {
     const [campaign, setCampaign] = useState(null);
     const [character, setCharacter] = useState(null);
     const [userCharacters, setUserCharacters] = useState([]);
+    const [showChapters, setShowChapters] = useState(false);
     
     // 'selection' | 'creation' | 'play'
     const [mode, setMode] = useState('loading'); 
@@ -161,16 +155,15 @@ export default function CampaignPlayPage() {
         }
     };
 
-    const handleCloseChapter = async () => {
-        if (!window.confirm("Voulez-vous clôturer ce chapitre ?\n\n- L'IA générera un résumé de vos aventures.\n- L'historique du chat sera archivé.\n- Un nouveau chapitre commencera.")) return;
-        
+    const handleCloseChapter = async (e) => {
+        if(e) e.stopPropagation();
+        // Remplacement temporaire du confirm natif qui bloque
         try {
             await campaignApi.closeChapter(token, id);
-            // Recharger la page pour repartir à zéro
             window.location.reload();
         } catch (e) {
-            console.error(e);
-            alert("Erreur lors de la clôture du chapitre");
+            console.error("Erreur clôture:", e);
+            alert("Erreur lors de la clôture du chapitre : " + e.message);
         }
     };
 
@@ -324,23 +317,38 @@ export default function CampaignPlayPage() {
             <div className="absolute inset-0 bg-black/60 z-10 pointer-events-none"></div>
 
             {/* Content Layer */}
-            <div className="relative z-20 h-full flex flex-col">
-                <div className="absolute top-2 left-2 md:top-4 md:left-4 flex gap-2">
-                    <button onClick={() => navigate('/')} className="bg-zinc-900/80 text-white p-2 rounded hover:bg-indigo-600 transition border border-zinc-700">
+            <div className="relative z-20 h-full flex flex-col pointer-events-none">
+                <div className="absolute top-2 left-2 md:top-4 md:left-4 flex gap-2 pointer-events-auto z-50">
+                    <button onClick={() => navigate('/')} className="bg-zinc-900/80 text-white p-2 rounded hover:bg-indigo-600 transition border border-zinc-700 cursor-pointer">
                         <ArrowLeft className="w-5 h-5" />
                     </button>
                     {mode === 'play' && (
-                        <button 
-                            onClick={handleCloseChapter}
-                            className="bg-zinc-900/80 text-indigo-400 p-2 rounded hover:bg-indigo-600 hover:text-white transition border border-zinc-700 flex items-center gap-2 text-sm font-medium"
-                            title="Terminer le chapitre et archiver l'histoire"
-                        >
-                            <BookOpen className="w-4 h-4" /> <span className="hidden md:inline">Finir Chapitre</span>
-                        </button>
+                        <>
+                            <button 
+                                onClick={() => setShowChapters(true)}
+                                className="bg-zinc-900/80 text-zinc-400 p-2 rounded hover:bg-zinc-800 hover:text-white transition border border-zinc-700 cursor-pointer"
+                                title="Voir les chroniques (Archives)"
+                            >
+                                <BookOpen className="w-5 h-5" />
+                            </button>
+                            <button 
+                                onClick={handleCloseChapter}
+                                className="bg-zinc-900/80 text-indigo-400 p-2 rounded hover:bg-indigo-600 hover:text-white transition border border-zinc-700 flex items-center gap-2 text-sm font-medium cursor-pointer"
+                                title="Terminer le chapitre et archiver l'histoire"
+                            >
+                                <CheckCircle className="w-4 h-4" /> <span className="hidden md:inline">Finir Chapitre</span>
+                            </button>
+                        </>
                     )}
                 </div>
 
-                <div className="flex-1 flex items-center justify-center p-2 md:p-8 h-full overflow-hidden">
+                <div className="flex-1 flex items-center justify-center p-2 md:p-8 h-full overflow-hidden pointer-events-auto">
+                    {showChapters && (
+                        <ChaptersModal 
+                            chapters={campaign?.chapters || []} 
+                            onClose={() => setShowChapters(false)} 
+                        />
+                    )}
                     {/* SWITCH MODE */}
                     {mode === 'play' && character && (
                         <div className="w-full max-w-7xl h-full animate-in fade-in duration-700 slide-in-from-bottom-4">

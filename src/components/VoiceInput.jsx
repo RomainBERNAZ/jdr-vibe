@@ -98,6 +98,18 @@ const VoiceInput = ({ initialCharacterSheet, initialHistory, initialSummary, aud
   const chunksRef = useRef([]);
   const chatContainerRef = useRef(null);
   const audioRef = useRef(null); // Référence pour l'objet Audio
+  const hasAutoStarted = useRef(false);
+
+  // Auto-start chapter intro
+  useEffect(() => {
+      if (conversation.length === 0 && initialSummary && !hasAutoStarted.current) {
+          hasAutoStarted.current = true;
+          // Petit délai pour laisser l'UI se charger
+          setTimeout(() => {
+              handleSend("[SYSTÈME] Le joueur reprend l'aventure après une pause. Fais un bref 'Précédemment...' basé sur le résumé (MÉMOIRE DU JEU) et enchaîne directement sur la description de la scène actuelle pour relancer l'action.");
+          }, 500);
+      }
+  }, [initialSummary]);
 
   // Scroll auto quand la conversation change
   useEffect(() => {
@@ -174,6 +186,9 @@ const VoiceInput = ({ initialCharacterSheet, initialHistory, initialSummary, aud
         formData.append('gameState', JSON.stringify(gameState));
     }
 
+    // Détection de message système caché
+    const isSystemMessage = manualText && typeof manualText === 'string' && manualText.startsWith("[SYSTÈME]");
+
     try {
       const response = await fetch('/api/voice/chat', {
         method: 'POST',
@@ -184,11 +199,15 @@ const VoiceInput = ({ initialCharacterSheet, initialHistory, initialSummary, aud
 
       const data = await response.json();
       
-      setConversation(prev => [
-        ...prev,
-        { type: 'user', text: data.userText, isNew: true },
-        { type: 'ai', text: data.aiResponse, isNew: true } // Marquer comme nouveau pour l'animation
-      ]);
+      setConversation(prev => {
+        const newMsgs = [...prev];
+        // On n'affiche le message utilisateur QUE s'il n'est pas système
+        if (!isSystemMessage) {
+             newMsgs.push({ type: 'user', text: data.userText, isNew: true });
+        }
+        newMsgs.push({ type: 'ai', text: data.aiResponse, isNew: true });
+        return newMsgs;
+      });
 
       if (data.newSummary) setSummary(data.newSummary);
       if (data.characterSheet) setCharacterSheet(data.characterSheet);
