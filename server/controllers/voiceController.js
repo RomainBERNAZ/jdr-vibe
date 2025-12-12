@@ -1,6 +1,8 @@
 import pool from '../config/db.js';
 import OpenAI from 'openai';
 import fs from 'fs';
+import { uploadToR2, isR2Configured } from '../services/r2Service.js';
+import path from 'path';
 
 // Configuration OpenAI sera initialisée avec la clé dans le .env
 // Assurez-vous que OPENAI_API_KEY est définie dans votre fichier .env
@@ -220,8 +222,35 @@ TON STYLE :
         }
     }
 
-    // Nettoyage
+    // Upload du fichier audio vers R2 si configuré, sinon nettoyage local
+    let audioFileUrl = null;
     if (req.file && fs.existsSync(req.file.path)) {
+        if (isR2Configured()) {
+            try {
+                // Déterminer le type MIME basé sur l'extension
+                const ext = path.extname(req.file.originalname).toLowerCase();
+                const contentTypeMap = {
+                    '.mp3': 'audio/mpeg',
+                    '.wav': 'audio/wav',
+                    '.ogg': 'audio/ogg',
+                    '.m4a': 'audio/mp4',
+                    '.webm': 'audio/webm',
+                };
+                const contentType = contentTypeMap[ext] || 'audio/mpeg';
+                
+                // Générer une clé unique pour le fichier dans R2
+                const timestamp = Date.now();
+                const campaignPrefix = campaignId ? `campaigns/${campaignId}/` : '';
+                const r2Key = `${campaignPrefix}audio/${timestamp}-${path.basename(req.file.filename)}`;
+                
+                audioFileUrl = await uploadToR2(req.file.path, r2Key, contentType);
+                console.log(`📤 Audio uploadé vers R2: ${audioFileUrl}`);
+            } catch (r2Error) {
+                console.error('⚠️ Erreur upload R2, fichier conservé localement:', r2Error);
+            }
+        }
+        
+        // Nettoyer le fichier local après upload (ou toujours si R2 non configuré)
         fs.unlinkSync(req.file.path);
     }
 
@@ -230,6 +259,7 @@ TON STYLE :
       aiResponse: parsedResponse.text,
       imageUrl: imageUrl,
       audio: audioContent, // Renvoie l'audio en base64 ou null
+      audioFileUrl: audioFileUrl, // URL du fichier audio dans R2 (si uploadé)
       newSummary: newSummary,
       characterSheet: parsedResponse.characterSheet,
       diceRequest: parsedResponse.diceRequest || null, // New field
@@ -238,8 +268,13 @@ TON STYLE :
 
   } catch (error) {
     console.error("Erreur OpenAI:", error);
+    // Nettoyer le fichier en cas d'erreur
     if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (cleanupError) {
+        console.error("Erreur nettoyage fichier:", cleanupError);
+      }
     }
     res.status(500).json({ error: "Erreur traitement", details: error.message });
   }

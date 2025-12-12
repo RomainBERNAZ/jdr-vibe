@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Sword, LogOut, Plus, Users, BarChart3, LayoutDashboard, Trash2, Edit } from 'lucide-react';
+import { Sparkles, Sword, LogOut, Plus, Users, BarChart3, LayoutDashboard, Trash2, Edit, Upload, FolderOpen } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { campaignApi, characterApi } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import CharacterCreationModal from '../components/CharacterCreationModal';
+import AssetsPage from './AssetsPage';
 
 const TabButton = ({ active, onClick, icon: Icon, label }) => (
     <button 
@@ -291,6 +292,12 @@ export default function DashboardPage() {
                         icon={BarChart3} 
                         label="Statistiques" 
                     />
+                    <TabButton 
+                        active={activeTab === 'assets'} 
+                        onClick={() => setActiveTab('assets')} 
+                        icon={FolderOpen} 
+                        label="Assets" 
+                    />
                 </nav>
 
                 <div className="border-t border-zinc-800 pt-4 mt-4">
@@ -322,6 +329,7 @@ export default function DashboardPage() {
                     <button onClick={() => setActiveTab('campaigns')} className={`flex-1 p-3 text-sm font-bold whitespace-nowrap ${activeTab === 'campaigns' ? 'text-indigo-400 border-b-2 border-indigo-400' : 'text-zinc-500'}`}>Campagnes</button>
                     <button onClick={() => setActiveTab('characters')} className={`flex-1 p-3 text-sm font-bold whitespace-nowrap ${activeTab === 'characters' ? 'text-indigo-400 border-b-2 border-indigo-400' : 'text-zinc-500'}`}>Personnages</button>
                     <button onClick={() => setActiveTab('stats')} className={`flex-1 p-3 text-sm font-bold whitespace-nowrap ${activeTab === 'stats' ? 'text-indigo-400 border-b-2 border-indigo-400' : 'text-zinc-500'}`}>Stats</button>
+                    <button onClick={() => setActiveTab('assets')} className={`flex-1 p-3 text-sm font-bold whitespace-nowrap ${activeTab === 'assets' ? 'text-indigo-400 border-b-2 border-indigo-400' : 'text-zinc-500'}`}>Assets</button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4 md:p-8">
@@ -329,6 +337,7 @@ export default function DashboardPage() {
                         {activeTab === 'campaigns' && <CampaignList token={token} navigate={navigate} />}
                         {activeTab === 'characters' && <CharacterList token={token} />}
                         {activeTab === 'stats' && <StatsPlaceholder />}
+                        {activeTab === 'assets' && <AssetsPage />}
                     </div>
                 </div>
             </div>

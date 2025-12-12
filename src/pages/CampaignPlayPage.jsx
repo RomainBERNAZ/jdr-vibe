@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Users, BookOpen, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Users, BookOpen, CheckCircle, Image as ImageIcon, X } from 'lucide-react';
 import * as THREE from 'three';
 import { useAuth } from '../context/AuthContext';
-import { campaignApi, characterApi } from '../services/api';
+import { campaignApi, characterApi, assetApi } from '../services/api';
 import VoiceInput from '../components/VoiceInput';
 import CharacterCreationModal from '../components/CharacterCreationModal';
 import CharacterSelectionModal from '../components/CharacterSelectionModal';
@@ -66,7 +66,7 @@ const ChaptersModal = ({ chapters, onClose }) => (
                     <BookOpen className="text-indigo-500" /> Chroniques
                 </h2>
                 <button onClick={onClose} className="text-zinc-400 hover:text-white">
-                    Fermer
+                    <X className="w-5 h-5" />
                 </button>
             </div>
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -89,6 +89,89 @@ const ChaptersModal = ({ chapters, onClose }) => (
     </div>
 );
 
+const AssetsModal = ({ campaignId, token, onClose }) => {
+    const [assets, setAssets] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const loadAssets = async () => {
+            try {
+                setLoading(true);
+                const data = await assetApi.list(token, { campaignId });
+                setAssets(Array.isArray(data) ? data : []);
+            } catch (error) {
+                console.error('Erreur chargement assets:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        if (campaignId && token) {
+            loadAssets();
+        }
+    }, [campaignId, token]);
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in p-4">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-4xl max-h-[80vh] flex flex-col shadow-2xl">
+                <div className="p-6 border-b border-zinc-800 flex justify-between items-center shrink-0">
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                        <ImageIcon className="text-indigo-500" /> Assets de la Campagne
+                    </h2>
+                    <button onClick={onClose} className="text-zinc-400 hover:text-white transition-colors">
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-6">
+                    {loading ? (
+                        <div className="text-center py-12 text-zinc-500">Chargement...</div>
+                    ) : assets.length === 0 ? (
+                        <div className="text-center py-12 text-zinc-500 border-2 border-dashed border-zinc-800 rounded-xl">
+                            <ImageIcon className="w-16 h-16 mx-auto mb-4 opacity-20" />
+                            <p className="text-lg font-medium">Aucun asset associé</p>
+                            <p className="text-sm">Les assets liés à cette campagne apparaîtront ici</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                            {assets.map(asset => (
+                                <div
+                                    key={asset.id}
+                                    className="bg-zinc-800/50 border border-zinc-700 rounded-lg overflow-hidden hover:border-indigo-500/50 transition-all group"
+                                >
+                                    {asset.file_type === 'image' ? (
+                                        <div className="aspect-square bg-zinc-950 relative overflow-hidden">
+                                            <img
+                                                src={asset.signed_url || asset.url}
+                                                alt={asset.title || asset.filename}
+                                                className="w-full h-full object-cover"
+                                                onError={(e) => {
+                                                    e.target.style.display = 'none';
+                                                    e.target.parentElement.innerHTML = '<div class="flex items-center justify-center h-full text-zinc-600"><ImageIcon class="w-8 h-8" /></div>';
+                                                }}
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div className="aspect-square bg-zinc-950 flex items-center justify-center text-zinc-600">
+                                            <ImageIcon className="w-8 h-8" />
+                                        </div>
+                                    )}
+                                    <div className="p-3">
+                                        <h3 className="font-bold text-white text-sm truncate" title={asset.title || asset.filename}>
+                                            {asset.title || asset.filename}
+                                        </h3>
+                                        {asset.chapter_title && (
+                                            <p className="text-xs text-zinc-500 mt-1">📄 {asset.chapter_title}</p>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export default function CampaignPlayPage() {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -97,6 +180,7 @@ export default function CampaignPlayPage() {
     const [character, setCharacter] = useState(null);
     const [userCharacters, setUserCharacters] = useState([]);
     const [showChapters, setShowChapters] = useState(false);
+    const [showAssets, setShowAssets] = useState(false);
     
     // 'selection' | 'creation' | 'play'
     const [mode, setMode] = useState('loading'); 
@@ -318,8 +402,9 @@ export default function CampaignPlayPage() {
             <div className="absolute inset-0 bg-black/60 z-10 pointer-events-none"></div>
 
             {/* Content Layer */}
-            <div className="relative z-20 h-full flex flex-col pointer-events-none">
-                <div className="absolute top-2 left-2 md:top-4 md:left-4 flex gap-2 pointer-events-auto z-50">
+            <div className="relative z-20 h-full flex flex-col pointer-events-none p-2 md:p-4">
+                {/* Barre de boutons en haut */}
+                <div className="flex gap-2 pointer-events-auto z-50 shrink-0 mb-2 md:mb-4">
                     <button onClick={() => navigate('/')} className="bg-zinc-900/80 text-white p-2 rounded hover:bg-indigo-600 transition border border-zinc-700 cursor-pointer">
                         <ArrowLeft className="w-5 h-5" />
                     </button>
@@ -333,6 +418,13 @@ export default function CampaignPlayPage() {
                                 <BookOpen className="w-5 h-5" />
                             </button>
                             <button 
+                                onClick={() => setShowAssets(true)}
+                                className="bg-zinc-900/80 text-purple-400 p-2 rounded hover:bg-purple-600 hover:text-white transition border border-zinc-700 cursor-pointer"
+                                title="Voir les assets de la campagne"
+                            >
+                                <ImageIcon className="w-5 h-5" />
+                            </button>
+                            <button 
                                 onClick={handleCloseChapter}
                                 className="bg-zinc-900/80 text-indigo-400 p-2 rounded hover:bg-indigo-600 hover:text-white transition border border-zinc-700 flex items-center gap-2 text-sm font-medium cursor-pointer"
                                 title="Terminer le chapitre et archiver l'histoire"
@@ -343,16 +435,24 @@ export default function CampaignPlayPage() {
                     )}
                 </div>
 
-                <div className="flex-1 flex items-center justify-center p-2 md:p-8 h-full overflow-hidden pointer-events-auto">
+                {/* Zone de jeu - prend toute la largeur et hauteur restante */}
+                <div className="flex-1 w-full h-full overflow-hidden pointer-events-auto">
                     {showChapters && (
                         <ChaptersModal 
                             chapters={campaign?.chapters || []} 
                             onClose={() => setShowChapters(false)} 
                         />
                     )}
+                    {showAssets && (
+                        <AssetsModal 
+                            campaignId={id}
+                            token={token}
+                            onClose={() => setShowAssets(false)} 
+                        />
+                    )}
                     {/* SWITCH MODE */}
                     {mode === 'play' && character && (
-                        <div className="w-full max-w-7xl h-full animate-in fade-in duration-700 slide-in-from-bottom-4">
+                        <div className="w-full h-full animate-in fade-in duration-700 slide-in-from-bottom-4">
                             <VoiceInput 
                                 initialCharacterSheet={character} 
                                 initialHistory={campaign?.history || []}

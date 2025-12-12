@@ -9,6 +9,8 @@ import authRoutes from './routes/authRoutes.js';
 import campaignRoutes from './routes/campaignRoutes.js';
 import characterRoutes from './routes/characterRoutes.js';
 import voiceRoutes from './routes/voiceRoutes.js';
+import uploadRoutes from './routes/uploadRoutes.js';
+import assetRoutes from './routes/assetRoutes.js';
 import runMigrations from './utils/migrate.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -31,6 +33,11 @@ app.use('/api', authRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/characters', characterRoutes);
 app.use('/api/voice', voiceRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api/assets', assetRoutes);
+
+// Serve uploads directory (for local testing if R2 not configured)
+app.use('/uploads', express.static(path.join(rootDir, 'uploads')));
 
 // Serve Frontend
 app.use(express.static(path.join(rootDir, 'dist')));

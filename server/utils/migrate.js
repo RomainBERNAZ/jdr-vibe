@@ -25,23 +25,31 @@ const runMigrations = async () => {
         console.log('✅ Database tables initialized successfully.');
         
         // Run additional migrations
-        const migrationPath = path.resolve(__dirname, '../../migration_add_missing_columns.sql');
-        if (fs.existsSync(migrationPath)) {
-            console.log('🔄 Running additional migrations...');
-            try {
-                const migrationSql = fs.readFileSync(migrationPath, 'utf8');
-                await pool.query(migrationSql);
-                console.log('✅ Additional migrations completed.');
-            } catch (migrationErr) {
-                // If columns already exist, that's okay
-                if (migrationErr.message && migrationErr.message.includes('already exists')) {
-                    console.log('ℹ️ Migration columns already exist, skipping...');
-                } else {
-                    console.error('⚠️ Error running migration (non-fatal):', migrationErr.message);
+        const migrations = [
+            'migration_add_missing_columns.sql',
+            'migration_add_assets_table.sql'
+        ];
+
+        for (const migrationFile of migrations) {
+            const migrationPath = path.resolve(__dirname, '../../', migrationFile);
+            if (fs.existsSync(migrationPath)) {
+                console.log(`🔄 Running migration: ${migrationFile}...`);
+                try {
+                    const migrationSql = fs.readFileSync(migrationPath, 'utf8');
+                    await pool.query(migrationSql);
+                    console.log(`✅ Migration ${migrationFile} completed.`);
+                } catch (migrationErr) {
+                    // If table/columns already exist, that's okay
+                    if (migrationErr.message && (
+                        migrationErr.message.includes('already exists') ||
+                        migrationErr.message.includes('duplicate key')
+                    )) {
+                        console.log(`ℹ️ Migration ${migrationFile} already applied, skipping...`);
+                    } else {
+                        console.error(`⚠️ Error running migration ${migrationFile} (non-fatal):`, migrationErr.message);
+                    }
                 }
             }
-        } else {
-            console.log('ℹ️ No additional migration file found.');
         }
     } catch (err) {
         console.error('❌ Error initializing database:', err);

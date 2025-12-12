@@ -25,9 +25,11 @@ services:
     volumes:
       - .:/app
       - /app/node_modules
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgres://admin:rpgpassword@db:5432/aether_rpg
-      JWT_SECRET: secret_key_super_secure
+      JWT_SECRET: ${JWT_SECRET:-secret_key_super_secure}
       CHOKIDAR_USEPOLLING: "true"
     depends_on:
       - db

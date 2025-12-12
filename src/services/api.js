@@ -95,6 +95,51 @@ export const campaignApi = {
   }
 };
 
+export const assetApi = {
+  list: async (token, filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.campaignId) params.append('campaignId', filters.campaignId);
+    if (filters.chapterId) params.append('chapterId', filters.chapterId);
+    if (filters.fileType) params.append('fileType', filters.fileType);
+    
+    const queryString = params.toString();
+    const url = `/api/assets${queryString ? `?${queryString}` : ''}`;
+    
+    const res = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) throw await res.json();
+    return res.json();
+  },
+  get: async (token, id) => {
+    const res = await fetch(`/api/assets/${id}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) throw await res.json();
+    return res.json();
+  },
+  update: async (token, id, data) => {
+    const res = await fetch(`/api/assets/${id}`, {
+      method: 'PUT',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}` 
+      },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw await res.json();
+    return res.json();
+  },
+  delete: async (token, id) => {
+    const res = await fetch(`/api/assets/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) throw await res.json();
+    return res.json();
+  }
+};
+
 export const characterApi = {
     list: async (token) => {
       const res = await fetch(`${API_URL}/characters`, {

@@ -5,6 +5,7 @@ import AuthPage from './pages/AuthPage';
 import DashboardPage from './pages/DashboardPage';
 import CampaignEditPage from './pages/CampaignEditPage';
 import CampaignPlayPage from './pages/CampaignPlayPage';
+import AssetsPage from './pages/AssetsPage';
 
 function PrivateRoute({ children }) {
   const { token } = useAuth();
@@ -20,6 +21,7 @@ function AppContent() {
         <Route path="/" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
         <Route path="/campaigns/:id/edit" element={<PrivateRoute><CampaignEditPage /></PrivateRoute>} />
         <Route path="/campaigns/:id/play" element={<PrivateRoute><CampaignPlayPage /></PrivateRoute>} />
+        <Route path="/assets" element={<PrivateRoute><AssetsPage /></PrivateRoute>} />
         <Route path="*" element={<Navigate to="/" />} />
      </Routes>
     </div>

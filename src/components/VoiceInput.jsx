@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Mic, Square, Loader2, MessageSquare, Shield, Heart, Coins, Backpack, Sword, Dices, FastForward, Send } from 'lucide-react';
 import DiceBox from './DiceBox';
+import GameImagesPanel from './GameImagesPanel';
 import { useParams } from 'react-router-dom';
 
 const TypewriterText = ({ text, onComplete, isNew, onSkip }) => {
@@ -265,7 +266,7 @@ const VoiceInput = ({ initialCharacterSheet, initialHistory, initialSummary, aud
   };
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden shadow-2xl max-w-7xl mx-auto mb-4 h-[85vh] flex flex-col relative">
+    <div className="w-full h-full flex flex-col relative border border-zinc-800 rounded-lg bg-zinc-900/95 overflow-hidden">
       
       {/* DICE REQUEST OVERLAY */}
       {diceRequest && (
@@ -285,34 +286,26 @@ const VoiceInput = ({ initialCharacterSheet, initialHistory, initialSummary, aud
 
       {/* MOBILE TABS HEADER */}
       <div className="md:hidden flex border-b border-zinc-800 bg-black z-30 relative shrink-0">
-        <button onClick={() => setMobileTab('dice')} className={`flex-1 p-3 flex justify-center items-center gap-2 text-sm font-bold ${mobileTab === 'dice' ? 'text-indigo-400 bg-zinc-900' : 'text-zinc-500'}`}><Dices className="w-4 h-4" /> Dés</button>
-        <button onClick={() => setMobileTab('chat')} className={`flex-1 p-3 flex justify-center items-center gap-2 text-sm font-bold ${mobileTab === 'chat' ? 'text-indigo-400 bg-zinc-900' : 'text-zinc-500'}`}><MessageSquare className="w-4 h-4" /> Jeu</button>
-        <button onClick={() => setMobileTab('character')} className={`flex-1 p-3 flex justify-center items-center gap-2 text-sm font-bold ${mobileTab === 'character' ? 'text-indigo-400 bg-zinc-900' : 'text-zinc-500'}`}><Shield className="w-4 h-4" /> Perso</button>
+        <button onClick={() => setMobileTab('chat')} className={`flex-1 p-3 flex justify-center items-center gap-2 text-sm font-bold ${mobileTab === 'chat' ? 'text-indigo-400 bg-zinc-900' : 'text-zinc-500'}`}><MessageSquare className="w-4 h-4" /> Chat</button>
+        <button onClick={() => setMobileTab('character')} className={`flex-1 p-3 flex justify-center items-center gap-2 text-sm font-bold ${mobileTab === 'character' ? 'text-indigo-400 bg-zinc-900' : 'text-zinc-500'}`}><Shield className="w-4 h-4" /> Perso & Dés</button>
       </div>
 
       <div className="flex flex-1 md:flex-row relative overflow-hidden">
 
-      {/* COLONNE GAUCHE : DÉS (20%) */}
-      <div className={`bg-black border-r border-zinc-800 flex flex-col h-full overflow-hidden ${mobileTab === 'dice' ? 'flex absolute z-20 inset-0 w-full md:relative md:z-0 md:w-[20%]' : 'hidden md:flex relative md:w-[20%]'}`}>
-        <div className="absolute top-0 left-0 w-full p-4 z-10 bg-gradient-to-b from-black/80 to-transparent">
-            <h3 className="text-zinc-400 font-serif tracking-widest text-xs uppercase flex items-center gap-2">
-                <Dices className="w-4 h-4" /> Zone de Lancer
-            </h3>
-        </div>
-        <div className="flex-1 w-full h-full flex items-center justify-center">
-             {/* Fallback si DiceBox n'est pas assez visible ou pour le 2D simple */}
-             {diceRoll && (
-                <div className="text-center animate-in zoom-in duration-300">
-                    <div className="text-6xl font-bold text-indigo-500 mb-2">{diceRoll.value}</div>
-                    <div className="text-zinc-500 text-sm uppercase tracking-widest">{diceRoll.type || "D20"}</div>
-                </div>
-             )}
-            {/* <DiceBox rollTrigger={diceRoll} />  <-- Peut être réactivé si fonctionnel */}
-        </div>
+      {/* COLONNE GAUCHE : IMAGES (18%) */}
+      <div className={`hidden md:flex relative md:w-[18%] h-full`}>
+        <GameImagesPanel 
+          campaignId={campaignId} 
+          conversation={conversation}
+          onImageClick={(asset) => {
+            // Optionnel : afficher l'image en grand ou faire une action
+            console.log('Image cliquée:', asset);
+          }}
+        />
       </div>
 
-      {/* COLONNE CENTRALE : DIALOGUE (55%) */}
-      <div className={`flex flex-col bg-zinc-900/95 border-r border-zinc-800 h-full ${mobileTab === 'chat' ? 'flex absolute z-20 inset-0 w-full md:relative md:z-0 md:w-[55%]' : 'hidden md:flex relative md:w-[55%]'}`}>
+      {/* COLONNE CENTRALE : DIALOGUE (64%) */}
+      <div className={`flex flex-col bg-zinc-900/95 border-r border-zinc-800 h-full ${mobileTab === 'chat' ? 'flex absolute z-20 inset-0 w-full md:relative md:z-0 md:w-[64%]' : 'hidden md:flex relative md:w-[64%]'}`}>
         {/* Zone de chat */}
         <div 
             ref={chatContainerRef}
@@ -422,73 +415,104 @@ const VoiceInput = ({ initialCharacterSheet, initialHistory, initialSummary, aud
         </div>
       </div>
 
-      {/* COLONNE DROITE : PERSONNAGE (25%) */}
-      <div className={`bg-zinc-900/80 p-6 flex flex-col border-l border-black/50 overflow-y-auto h-full scrollbar-thin scrollbar-thumb-zinc-700 ${mobileTab === 'character' ? 'flex absolute z-20 inset-0 w-full md:relative md:z-0 md:w-[25%]' : 'hidden md:flex relative md:w-[25%]'}`}>
-        <h3 className="text-zinc-400 font-serif tracking-widest text-xs uppercase mb-6 flex items-center gap-2 sticky top-0 bg-zinc-900/95 py-2 z-10 w-full">
-            <Shield className="w-4 h-4" /> Fiche Personnage
-        </h3>
+      {/* COLONNE DROITE : PERSONNAGE + DÉS (18%) */}
+      <div className={`bg-zinc-900/80 flex flex-col border-l border-black/50 overflow-hidden h-full ${mobileTab === 'character' ? 'flex absolute z-20 inset-0 w-full md:relative md:z-0 md:w-[18%]' : 'hidden md:flex relative md:w-[18%]'}`}>
+        
+        {/* FICHE PERSONNAGE */}
+        <div className="p-3 flex flex-col flex-1 min-h-0">
+            <h3 className="text-zinc-400 font-serif tracking-widest text-xs uppercase mb-3 flex items-center gap-2 shrink-0">
+                <Shield className="w-3 h-3" /> Personnage
+            </h3>
 
-        {characterSheet ? (
-            <div className="space-y-6 animate-in fade-in duration-500">
-                {/* Header Perso */}
-                <div className="border-b border-zinc-700 pb-4">
-                    <h2 className="text-xl font-bold text-indigo-100 font-serif">{characterSheet.name || "Inconnu"}</h2>
-                    <p className="text-zinc-400 text-sm">{characterSheet.race} {characterSheet.class} (Niv. {characterSheet.level})</p>
-                </div>
-
-                {/* Stats Vitales */}
-                <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-red-900/20 border border-red-900/50 p-3 rounded-lg flex flex-col items-center">
-                        <Heart className="w-5 h-5 text-red-500 mb-1" />
-                        <span className="text-lg font-bold text-red-100">
-                            {characterSheet.hp_current ?? characterSheet.hp?.current ?? '?'}/{characterSheet.hp_max ?? characterSheet.hp?.max ?? '?'}
-                        </span>
-                        <span className="text-xs text-red-400">PV</span>
+            {characterSheet ? (
+                <div className="space-y-3 animate-in fade-in duration-500 flex-1 flex flex-col min-h-0">
+                    {/* Header Perso */}
+                    <div className="border-b border-zinc-700 pb-2 shrink-0">
+                        <h2 className="text-base font-bold text-indigo-100 font-serif truncate">{characterSheet.name || "Inconnu"}</h2>
+                        <p className="text-zinc-400 text-xs truncate">{characterSheet.race} {characterSheet.class} (Niv. {characterSheet.level})</p>
                     </div>
-                    <div className="bg-amber-900/20 border border-amber-900/50 p-3 rounded-lg flex flex-col items-center">
-                        <Coins className="w-5 h-5 text-amber-500 mb-1" />
-                        <span className="text-lg font-bold text-amber-100">{characterSheet.gold}</span>
-                        <span className="text-xs text-amber-400">Or</span>
-                    </div>
-                </div>
 
-                {/* Attributs */}
-                <div className="space-y-2">
-                    <h4 className="text-xs text-zinc-500 uppercase tracking-wider mb-2">Attributs</h4>
-                    {characterSheet.stats && Object.entries(characterSheet.stats).map(([stat, val]) => (
-                        <div key={stat} className="flex justify-between items-center bg-black/20 px-3 py-2 rounded border border-zinc-800">
-                            <span className="text-zinc-400 capitalize text-sm">{stat}</span>
-                            <span className="font-bold text-indigo-300">{val}</span>
+                    {/* Stats Vitales */}
+                    <div className="grid grid-cols-2 gap-2 shrink-0">
+                        <div className="bg-red-900/20 border border-red-900/50 p-2 rounded flex flex-col items-center">
+                            <Heart className="w-4 h-4 text-red-500 mb-0.5" />
+                            <span className="text-sm font-bold text-red-100">
+                                {characterSheet.hp_current ?? characterSheet.hp?.current ?? '?'}/{characterSheet.hp_max ?? characterSheet.hp?.max ?? '?'}
+                            </span>
+                            <span className="text-[10px] text-red-400">PV</span>
                         </div>
-                    ))}
-                </div>
+                        <div className="bg-amber-900/20 border border-amber-900/50 p-2 rounded flex flex-col items-center">
+                            <Coins className="w-4 h-4 text-amber-500 mb-0.5" />
+                            <span className="text-sm font-bold text-amber-100">{characterSheet.gold}</span>
+                            <span className="text-[10px] text-amber-400">Or</span>
+                        </div>
+                    </div>
 
-                {/* Inventaire */}
-                <div>
-                    <h4 className="text-xs text-zinc-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                        <Backpack className="w-3 h-3" /> Inventaire
-                    </h4>
-                    <div className="space-y-2">
-                        {characterSheet.inventory && characterSheet.inventory.length > 0 ? (
-                            characterSheet.inventory.map((item, i) => (
-                                <div key={i} className="bg-zinc-800/50 px-3 py-2 rounded text-sm text-zinc-300 border border-zinc-800 flex items-center gap-2">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-500/50"></div>
-                                    {item}
+                    {/* Attributs - Grid compact */}
+                    <div className="shrink-0">
+                        <h4 className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Attributs</h4>
+                        <div className="grid grid-cols-2 gap-1.5">
+                            {characterSheet.stats && Object.entries(characterSheet.stats).map(([stat, val]) => (
+                                <div key={stat} className="flex justify-between items-center bg-black/20 px-2 py-1 rounded border border-zinc-800">
+                                    <span className="text-zinc-400 capitalize text-[10px] truncate">{stat}</span>
+                                    <span className="font-bold text-indigo-300 text-xs">{val}</span>
                                 </div>
-                            ))
-                        ) : (
-                            <p className="text-zinc-600 text-xs italic">Sac vide...</p>
-                        )}
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Inventaire - Compact avec scroll si nécessaire */}
+                    <div className="flex-1 flex flex-col min-h-0">
+                        <h4 className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5 flex items-center gap-1 shrink-0">
+                            <Backpack className="w-2.5 h-2.5" /> Inventaire
+                        </h4>
+                        <div className="space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-700 flex-1">
+                            {characterSheet.inventory && characterSheet.inventory.length > 0 ? (
+                                characterSheet.inventory.map((item, i) => (
+                                    <div key={i} className="bg-zinc-800/50 px-2 py-1 rounded text-[10px] text-zinc-300 border border-zinc-800 flex items-center gap-1.5">
+                                        <div className="w-1 h-1 rounded-full bg-indigo-500/50 shrink-0"></div>
+                                        <span className="truncate">{item}</span>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-zinc-600 text-[10px] italic">Sac vide...</p>
+                            )}
+                        </div>
                     </div>
                 </div>
+            ) : (
+                <div className="flex flex-col items-center justify-center h-full text-zinc-600 text-center p-4 border-2 border-dashed border-zinc-800 rounded-xl">
+                    <Sword className="w-8 h-8 mb-3 opacity-20" />
+                    <p className="text-xs">Aucun personnage actif.</p>
+                </div>
+            )}
+        </div>
+
+        {/* ZONE DE LANCER DE DÉS */}
+        <div className="border-t border-zinc-800 bg-black/60 p-3 flex flex-col shrink-0">
+            <h3 className="text-zinc-400 font-serif tracking-widest text-xs uppercase mb-2 flex items-center gap-1.5">
+                <Dices className="w-3 h-3" /> Dés
+            </h3>
+            <div className="flex items-center justify-center min-h-[120px]">
+                {diceRoll ? (
+                    <div className="text-center animate-in zoom-in duration-300">
+                        <div className="text-5xl font-bold text-indigo-500 mb-1">{diceRoll.value}</div>
+                        <div className="text-zinc-500 text-xs uppercase tracking-widest">{diceRoll.type || "D20"}</div>
+                    </div>
+                ) : diceRequest ? (
+                    <div className="text-center text-zinc-500">
+                        <Dices className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                        <p className="text-xs">Attente</p>
+                        <p className="text-[10px] mt-0.5">{diceRequest.stat} ({diceRequest.type})</p>
+                    </div>
+                ) : (
+                    <div className="text-center text-zinc-600">
+                        <Dices className="w-10 h-10 mx-auto mb-2 opacity-20" />
+                        <p className="text-[10px] italic">Résultats ici</p>
+                    </div>
+                )}
             </div>
-        ) : (
-            <div className="flex flex-col items-center justify-center h-64 text-zinc-600 text-center p-4 border-2 border-dashed border-zinc-800 rounded-xl">
-                <Sword className="w-8 h-8 mb-3 opacity-20" />
-                <p className="text-sm">Aucun personnage actif.</p>
-                <p className="text-xs mt-2">Commencez l'aventure pour créer votre héros.</p>
-            </div>
-        )}
+        </div>
       </div>
 
       </div>
