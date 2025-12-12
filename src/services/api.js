@@ -29,6 +29,9 @@ export const campaignApi = {
     return res.json();
   },
   get: async (token, id) => {
+    if (!id || id === 'undefined') {
+      throw new Error('Invalid campaign ID');
+    }
     const res = await fetch(`${API_URL}/campaigns/${id}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });

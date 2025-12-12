@@ -16,6 +16,9 @@ export const getCampaigns = async (req, res) => {
 export const getCampaign = async (req, res) => {
   try {
     const { id } = req.params;
+    if (!id || id === 'undefined') {
+      return res.status(400).json({ error: "Invalid campaign ID" });
+    }
     const result = await pool.query('SELECT * FROM campaigns WHERE id = $1', [id]);
     
     if (result.rows.length === 0) return res.status(404).json({ error: "Campaign not found" });
@@ -69,6 +72,9 @@ export const createCampaign = async (req, res) => {
 export const updateCampaign = async (req, res) => {
   try {
     const { id } = req.params;
+    if (!id || id === 'undefined') {
+      return res.status(400).json({ error: "Invalid campaign ID" });
+    }
     const { name, system, description, status } = req.body;
     
     const check = await pool.query('SELECT user_id FROM campaigns WHERE id = $1', [id]);
@@ -93,6 +99,9 @@ export const updateCampaign = async (req, res) => {
 export const deleteCampaign = async (req, res) => {
   try {
     const { id } = req.params;
+    if (!id || id === 'undefined') {
+      return res.status(400).json({ error: "Invalid campaign ID" });
+    }
     
     // Check ownership
     const check = await pool.query('SELECT user_id FROM campaigns WHERE id = $1', [id]);
@@ -109,6 +118,9 @@ export const deleteCampaign = async (req, res) => {
 export const addPlayer = async (req, res) => {
   try {
     const { id } = req.params;
+    if (!id || id === 'undefined') {
+      return res.status(400).json({ error: "Invalid campaign ID" });
+    }
     const { email } = req.body;
 
     const campRes = await pool.query('SELECT * FROM campaigns WHERE id = $1', [id]);
@@ -148,6 +160,9 @@ export const addPlayer = async (req, res) => {
 export const closeChapter = async (req, res) => {
     try {
         const { id } = req.params;
+        if (!id || id === 'undefined') {
+            return res.status(400).json({ error: "Invalid campaign ID" });
+        }
         
         // Check ownership
         const check = await pool.query('SELECT user_id FROM campaigns WHERE id = $1', [id]);
