@@ -2,13 +2,6 @@
   "name": "aether-rpg-v0.1",
   "version": "0.1.0",
   "type": "module",
-  "scripts": {
-    "start": "node server/index.js",
-    "dev": "concurrently \"vite\" \"nodemon server/index.js\"",
-    "build": "vite build",
-    "migrate": "node server/utils/runMigration.js",
-    "delete-assets": "node server/utils/deleteAllAssets.js"
-  },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.948.0",
     "@aws-sdk/s3-request-presigner": "^3.948.0",
@@ -32,9 +25,27 @@
     "three": "^0.181.2",
     "vite": "^4.3.0"
   },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "concurrently \"vite\" \"nodemon server/index.js\"",
+    "build": "vite build",
+    "migrate": "node server/utils/runMigration.js",
+    "delete-assets": "node server/utils/deleteAllAssets.js",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage"
+  },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.1.5",
+    "@testing-library/react": "^14.1.2",
+    "@testing-library/user-event": "^14.5.1",
+    "@vitest/coverage-v8": "^1.1.0",
+    "@vitest/ui": "^1.1.0",
     "concurrently": "^8.0.1",
+    "jsdom": "^23.0.1",
     "nodemon": "^2.0.22",
-    "vite-plugin-pwa": "^1.2.0"
+    "supertest": "^6.3.3",
+    "vite-plugin-pwa": "^1.2.0",
+    "vitest": "^1.1.0"
   }
 }

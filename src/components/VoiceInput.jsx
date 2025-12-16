@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Mic, Square, Loader2, MessageSquare, Shield, Heart, Coins, Backpack, Sword, Dices, FastForward, Send } from 'lucide-react';
-import DiceBox from './DiceBox';
 import GameImagesPanel from './GameImagesPanel';
 import { useParams } from 'react-router-dom';
 
