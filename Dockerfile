@@ -1,5 +1,5 @@
 # Stage 1: Base (Common dependencies)
-FROM node:20-alpine as base
+FROM node:24-alpine as base
 WORKDIR /app
 COPY package.json package-lock.json ./
 
@@ -17,7 +17,7 @@ COPY . .
 RUN npm run build
 
 # Stage 4: Production Server
-FROM node:20-alpine as production
+FROM node:24-alpine as production
 WORKDIR /app
 COPY package.json package-lock.json ./
 
