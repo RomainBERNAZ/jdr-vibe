@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { User, Shield, Sword, Crown, Scroll } from 'lucide-react';
 
-export default function CharacterCreationModal({ onCreate }) {
+export default function CharacterCreationModal({ onCreate, isSaving = false }) {
     const [formData, setFormData] = useState({
         name: '',
         race: 'Humain',
@@ -110,10 +110,11 @@ export default function CharacterCreationModal({ onCreate }) {
 
                     <button 
                         type="submit"
+                        disabled={isSaving}
                         className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg transition-all transform hover:scale-[1.02] shadow-lg shadow-indigo-900/20 flex items-center justify-center gap-2"
                     >
                         <Shield className="w-5 h-5" />
-                        Commencer l'Aventure
+                        {isSaving ? 'Sauvegarde...' : "Commencer l'Aventure"}
                     </button>
                 </form>
             </div>

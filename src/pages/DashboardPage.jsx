@@ -6,25 +6,23 @@ import { useNavigate } from 'react-router-dom';
 import VoiceInput from '../components/VoiceInput';
 
 export default function DashboardPage() {
-    const { user, token, logout } = useAuth();
+    const { user, logout } = useAuth();
     const [campaigns, setCampaigns] = useState([]);
     const [newCampName, setNewCampName] = useState('');
     const navigate = useNavigate();
     
     useEffect(() => {
-        if(token) {
-            campaignApi.list(token)
-                .then(data => setCampaigns(Array.isArray(data) ? data : []))
-                .catch(console.error);
-        }
-    }, [token]);
+        campaignApi.list()
+            .then(data => setCampaigns(Array.isArray(data) ? data : []))
+            .catch(console.error);
+    }, []);
 
     const handleCreate = async (e) => {
         e.preventDefault();
         if(!newCampName) return;
         
         try {
-            const newCamp = await campaignApi.create(token, newCampName);
+            const newCamp = await campaignApi.create(newCampName);
             setCampaigns([newCamp, ...campaigns]);
             setNewCampName('');
         } catch (err) {
@@ -67,13 +65,15 @@ export default function DashboardPage() {
                 {campaigns.map(camp => (
                     <div key={camp.id} className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-xl hover:border-indigo-500/50 transition-all group relative">
                         <div className="flex justify-between items-start mb-4">
-                            <button 
-                                onClick={() => navigate(`/campaigns/${camp.id}/edit`)}
-                                className="w-10 h-10 bg-zinc-800 rounded-lg flex items-center justify-center hover:bg-indigo-600 transition-colors"
-                                title="Modifier la campagne"
-                            >
-                                <Sword className="w-5 h-5" />
-                            </button>
+                            {camp.is_owner && (
+                                <button
+                                    onClick={() => navigate(`/campaigns/${camp.id}/edit`)}
+                                    className="w-10 h-10 bg-zinc-800 rounded-lg flex items-center justify-center hover:bg-indigo-600 transition-colors"
+                                    title="Modifier la campagne"
+                                >
+                                    <Sword className="w-5 h-5" />
+                                </button>
+                            )}
                             <div className="flex gap-2">
                                 <span className={`text-xs px-2 py-1 rounded border ${camp.status === 'active' ? 'border-green-500 text-green-500' : 'border-zinc-700 text-zinc-500'}`}>
                                     {camp.status || 'pending'}

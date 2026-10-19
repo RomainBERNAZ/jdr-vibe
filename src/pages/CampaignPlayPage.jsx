@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import * as THREE from 'three';
-import { useAuth } from '../context/AuthContext';
 import { campaignApi } from '../services/api';
 import VoiceInput from '../components/VoiceInput';
 import CharacterCreationModal from '../components/CharacterCreationModal';
@@ -57,34 +56,96 @@ const generatePixelTexture = (type) => {
     return texture;
 };
 
+const disposeScene = (scene) => {
+    const geometries = new Set();
+    const materials = new Set();
+    const textures = new Set();
+
+    scene.traverse((object) => {
+        if (object.geometry) geometries.add(object.geometry);
+        if (object.shadow?.map) textures.add(object.shadow.map);
+        const objectMaterials = Array.isArray(object.material) ? object.material : [object.material];
+        objectMaterials.filter(Boolean).forEach((material) => {
+            materials.add(material);
+            Object.values(material).forEach((value) => {
+                if (value?.isTexture) textures.add(value);
+            });
+        });
+    });
+
+    textures.forEach((texture) => texture.dispose());
+    geometries.forEach((geometry) => geometry.dispose());
+    materials.forEach((material) => material.dispose());
+};
+
 export default function CampaignPlayPage() {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { token } = useAuth();
     const [campaign, setCampaign] = useState(null);
-    const [character, setCharacter] = useState(null);
+    const [session, setSession] = useState(null);
     const [showCharacterCreation, setShowCharacterCreation] = useState(true);
+    const [loading, setLoading] = useState(true);
+    const [pageError, setPageError] = useState('');
+    const [savingCharacter, setSavingCharacter] = useState(false);
     
     const mountRef = useRef(null);
 
-    // Charger le personnage depuis le localStorage si existant pour cette campagne
     useEffect(() => {
-        const savedChar = localStorage.getItem(`character_${id}`);
-        if (savedChar) {
-            setCharacter(JSON.parse(savedChar));
-            setShowCharacterCreation(false);
-        }
+        let cancelled = false;
+        setLoading(true);
+        setPageError('');
+
+        Promise.all([campaignApi.get(id), campaignApi.getSession(id)])
+            .then(async ([campaignData, sessionData]) => {
+                if (cancelled) return;
+                let loadedSession = sessionData;
+
+                if (!loadedSession.characterSheet) {
+                    try {
+                        const legacyCharacter = JSON.parse(localStorage.getItem(`character_${id}`) || 'null');
+                        if (legacyCharacter) {
+                            loadedSession = await campaignApi.saveSession(id, {
+                                ...loadedSession,
+                                characterSheet: legacyCharacter
+                            });
+                            localStorage.removeItem(`character_${id}`);
+                        }
+                    } catch (error) {
+                        console.error('Unable to migrate the local character sheet:', error);
+                    }
+                }
+
+                if (cancelled) return;
+                setCampaign(campaignData);
+                setSession(loadedSession);
+                setShowCharacterCreation(!loadedSession.characterSheet);
+            })
+            .catch((error) => {
+                if (!cancelled) setPageError(error.message || 'Impossible de charger la campagne.');
+            })
+            .finally(() => {
+                if (!cancelled) setLoading(false);
+            });
+
+        return () => { cancelled = true; };
     }, [id]);
 
-    const handleCharacterCreate = (newCharacter) => {
-        setCharacter(newCharacter);
-        localStorage.setItem(`character_${id}`, JSON.stringify(newCharacter));
-        setShowCharacterCreation(false);
+    const handleCharacterCreate = async (newCharacter) => {
+        setSavingCharacter(true);
+        setPageError('');
+        try {
+            const updatedSession = await campaignApi.saveSession(id, {
+                ...session,
+                characterSheet: newCharacter
+            });
+            setSession(updatedSession);
+            setShowCharacterCreation(false);
+        } catch (error) {
+            setPageError(error.message || 'Impossible de sauvegarder le personnage.');
+        } finally {
+            setSavingCharacter(false);
+        }
     };
-
-    useEffect(() => {
-        campaignApi.get(token, id).then(setCampaign).catch(console.error);
-    }, [id, token]);
 
     useEffect(() => {
         if (!mountRef.current) return;
@@ -185,9 +246,10 @@ export default function CampaignPlayPage() {
 
         // --- ANIMATION LOOP ---
         const clock = new THREE.Clock();
+        let animationId;
         
         const animate = () => {
-            requestAnimationFrame(animate);
+            animationId = requestAnimationFrame(animate);
             const time = clock.getElapsedTime();
 
             torches.forEach(t => {
@@ -202,22 +264,29 @@ export default function CampaignPlayPage() {
         };
         animate();
 
-        const handleResize = () => {
-            if (!mountRef.current) return;
-            const w = mountRef.current.clientWidth;
-            const h = mountRef.current.clientHeight;
+        const resizeObserver = new ResizeObserver(([entry]) => {
+            if (!entry) return;
+            const w = Math.max(1, entry.contentRect.width);
+            const h = Math.max(1, entry.contentRect.height);
             camera.aspect = w / h;
             camera.updateProjectionMatrix();
             renderer.setSize(w, h);
-        };
-        window.addEventListener('resize', handleResize);
+        });
+        resizeObserver.observe(mountRef.current);
 
         return () => {
-            window.removeEventListener('resize', handleResize);
-            if (mountRef.current) mountRef.current.removeChild(renderer.domElement);
+            cancelAnimationFrame(animationId);
+            resizeObserver.disconnect();
+            renderer.domElement.remove();
+            disposeScene(scene);
+            renderer.renderLists.dispose();
             renderer.dispose();
+            renderer.forceContextLoss();
         };
     }, []);
+
+    if (loading) return <div className="p-10 text-center">Chargement de la campagne...</div>;
+    if (!campaign || !session) return <div className="p-10 text-center">{pageError || 'Campagne introuvable'}</div>;
 
     return (
         <div className="h-screen w-full bg-zinc-950 relative overflow-hidden">
@@ -238,13 +307,19 @@ export default function CampaignPlayPage() {
 
                 <div className="flex-1 flex items-center justify-center p-2 md:p-8 h-full overflow-hidden">
                     {/* Si on a un personnage, on affiche l'interface de jeu. Sinon le modal de création. */}
-                    {!showCharacterCreation && character ? (
+                    {!showCharacterCreation && session.characterSheet ? (
                         <div className="w-full max-w-7xl h-full animate-in fade-in duration-700 slide-in-from-bottom-4">
-                            <VoiceInput initialCharacterSheet={character} />
+                            <VoiceInput
+                                campaignId={id}
+                                initialCharacterSheet={session.characterSheet}
+                                initialConversation={session.conversation}
+                                initialSummary={session.summary}
+                            />
                         </div>
                     ) : (
-                        <CharacterCreationModal onCreate={handleCharacterCreate} />
+                        <CharacterCreationModal onCreate={handleCharacterCreate} isSaving={savingCharacter} />
                     )}
+                    {pageError && <p className="absolute bottom-4 left-4 right-4 text-center text-sm text-red-300">{pageError}</p>}
                 </div>
             </div>
         </div>

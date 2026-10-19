@@ -1,5 +1,20 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { rollDice as calculateDiceRoll } from '../utils/dice.js';
+
+const disposeObject = (object) => {
+    object.traverse((child) => {
+        child.geometry?.dispose();
+        if (!child.material) return;
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        materials.forEach((material) => {
+            Object.values(material).forEach((value) => {
+                if (value?.isTexture) value.dispose();
+            });
+            material.dispose();
+        });
+    });
+};
 
 const DiceBox = ({ rollTrigger }) => {
     const mountRef = useRef(null);
@@ -8,6 +23,7 @@ const DiceBox = ({ rollTrigger }) => {
     const rendererRef = useRef(null);
     const diceRefs = useRef([]);
     const physicsRef = useRef({ velocity: [], angularVelocity: [] });
+    const [rollResult, setRollResult] = useState(null);
 
     // --- TEXTURE GENERATOR FOR NUMBERS ---
     const createDiceTexture = (text, color = 'white', bgColor = 'transparent') => {
@@ -71,8 +87,8 @@ const DiceBox = ({ rollTrigger }) => {
         if (!mountRef.current) return;
 
         // 1. SETUP
-        const width = mountRef.current.clientWidth;
-        const height = mountRef.current.clientHeight;
+        const width = Math.max(1, mountRef.current.clientWidth);
+        const height = Math.max(1, mountRef.current.clientHeight);
 
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x111111); // Dark background
@@ -85,6 +101,7 @@ const DiceBox = ({ rollTrigger }) => {
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setSize(width, height);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         renderer.shadowMap.enabled = true;
         mountRef.current.appendChild(renderer.domElement);
         rendererRef.current = renderer;
@@ -144,25 +161,31 @@ const DiceBox = ({ rollTrigger }) => {
         // Cleanup
         return () => {
             cancelAnimationFrame(animationId);
-            if (mountRef.current && renderer.domElement) {
-                mountRef.current.removeChild(renderer.domElement);
-            }
+            disposeObject(scene);
+            renderer.renderLists.dispose();
             renderer.dispose();
+            renderer.forceContextLoss();
+            renderer.domElement.remove();
+            sceneRef.current = null;
+            cameraRef.current = null;
+            rendererRef.current = null;
+            diceRefs.current = [];
         };
     }, []);
 
     // Handle Resize
     useEffect(() => {
-        const handleResize = () => {
-            if (!mountRef.current || !cameraRef.current || !rendererRef.current) return;
-            const w = mountRef.current.clientWidth;
-            const h = mountRef.current.clientHeight;
+        if (!mountRef.current) return;
+        const resizeObserver = new ResizeObserver(([entry]) => {
+            if (!cameraRef.current || !rendererRef.current || !entry) return;
+            const w = Math.max(1, entry.contentRect.width);
+            const h = Math.max(1, entry.contentRect.height);
             cameraRef.current.aspect = w / h;
             cameraRef.current.updateProjectionMatrix();
             rendererRef.current.setSize(w, h);
-        };
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
+        });
+        resizeObserver.observe(mountRef.current);
+        return () => resizeObserver.disconnect();
     }, []);
 
     // ROLL TRIGGER
@@ -173,17 +196,21 @@ const DiceBox = ({ rollTrigger }) => {
     }, [rollTrigger]);
 
     const rollDice = (diceConfig) => {
+        const result = calculateDiceRoll(diceConfig);
+        setRollResult(result);
+
         // Clear old dice
-        diceRefs.current.forEach(d => sceneRef.current.remove(d));
+        diceRefs.current.forEach((dice) => {
+            sceneRef.current.remove(dice);
+            disposeObject(dice);
+        });
         diceRefs.current = [];
         physicsRef.current = { velocity: [], angularVelocity: [] };
 
-        const { type = 'd20', count = 1 } = diceConfig;
-
-        for (let i = 0; i < count; i++) {
+        for (let i = 0; i < result.count; i++) {
             let mesh;
             
-            if (type === 'd6') {
+            if (result.type === 'd6') {
                 const { geometry, material } = createD6();
                 mesh = new THREE.Mesh(geometry, material);
             } else {
@@ -223,7 +250,16 @@ const DiceBox = ({ rollTrigger }) => {
         }
     };
 
-    return <div ref={mountRef} className="w-full h-full" />;
+    return (
+        <div className="relative w-full h-full">
+            <div ref={mountRef} className="absolute inset-0" />
+            {rollResult && (
+                <div className="absolute bottom-4 left-2 right-2 z-10 rounded bg-black/80 p-3 text-center text-sm font-bold text-white" aria-live="polite">
+                    {rollResult.type} ({rollResult.results.join(' + ')}) = {rollResult.total}
+                </div>
+            )}
+        </div>
+    );
 };
 
 export default DiceBox;

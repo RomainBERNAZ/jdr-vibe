@@ -1,73 +1,98 @@
 const API_URL = '/api';
 
+const readResponse = async (response) => {
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(data.error || `Request failed (${response.status})`);
+    error.status = response.status;
+    error.details = data.details;
+    throw error;
+  }
+  return data;
+};
+
+const request = (url, options = {}) => fetch(url, { credentials: 'include', ...options });
+
 export const authApi = {
   login: async (email, password) => {
-    const res = await fetch(`${API_URL}/login`, {
+    const res = await request(`${API_URL}/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
     });
-    if (!res.ok) throw await res.json();
-    return res.json();
+    return readResponse(res);
   },
   register: async (email, password) => {
-    const res = await fetch(`${API_URL}/register`, {
+    const res = await request(`${API_URL}/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
     });
-    if (!res.ok) throw await res.json();
-    return res.json();
+    return readResponse(res);
+  },
+  me: async () => {
+    const res = await request(`${API_URL}/me`);
+    return readResponse(res);
+  },
+  logout: async () => {
+    const res = await request(`${API_URL}/logout`, { method: 'POST' });
+    if (!res.ok && res.status !== 204) return readResponse(res);
   }
 };
 
 export const campaignApi = {
-  list: async (token) => {
-    const res = await fetch(`${API_URL}/campaigns`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    return res.json();
+  list: async () => {
+    const res = await request(`${API_URL}/campaigns`);
+    return readResponse(res);
   },
-  get: async (token, id) => {
-    const res = await fetch(`${API_URL}/campaigns/${id}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (!res.ok) throw await res.json();
-    return res.json();
+  get: async (id) => {
+    const res = await request(`${API_URL}/campaigns/${id}`);
+    return readResponse(res);
   },
-  create: async (token, name) => {
-    const res = await fetch(`${API_URL}/campaigns`, {
+  create: async (name) => {
+    const res = await request(`${API_URL}/campaigns`, {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}` 
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, system: 'D&D 5e' })
     });
-    return res.json();
+    return readResponse(res);
   },
-  update: async (token, id, data) => {
-    const res = await fetch(`${API_URL}/campaigns/${id}`, {
+  update: async (id, data) => {
+    const res = await request(`${API_URL}/campaigns/${id}`, {
       method: 'PUT',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}` 
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
-    if (!res.ok) throw await res.json();
-    return res.json();
+    return readResponse(res);
   },
-  addPlayer: async (token, id, email) => {
-    const res = await fetch(`${API_URL}/campaigns/${id}/players`, {
+  addPlayer: async (id, email) => {
+    const res = await request(`${API_URL}/campaigns/${id}/players`, {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}` 
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email })
     });
-    if (!res.ok) throw await res.json();
-    return res.json();
+    return readResponse(res);
+  },
+  getSession: async (id) => {
+    const res = await request(`${API_URL}/campaigns/${id}/session`);
+    const data = await readResponse(res);
+    return {
+      conversation: data.conversation || [],
+      summary: data.summary || '',
+      characterSheet: data.character_sheet ?? null
+    };
+  },
+  saveSession: async (id, session) => {
+    const res = await request(`${API_URL}/campaigns/${id}/session`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(session)
+    });
+    const data = await readResponse(res);
+    return {
+      conversation: data.conversation || [],
+      summary: data.summary || '',
+      characterSheet: data.character_sheet ?? null
+    };
   }
 };

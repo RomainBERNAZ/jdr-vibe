@@ -20,15 +20,15 @@ export default function AuthPage() {
       let data;
       if (isLogin) {
         data = await authApi.login(email, password);
-        login(data.token, data.user);
+        login(data.user);
       } else {
         // Register then auto-login
         await authApi.register(email, password);
         const loginData = await authApi.login(email, password);
-        login(loginData.token, loginData.user);
+        login(loginData.user);
       }
     } catch (err) {
-      setError(err.error || 'Authentication failed');
+      setError(err.message || 'Authentication failed');
     } finally {
       setLoading(false);
     }

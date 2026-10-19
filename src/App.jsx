@@ -1,27 +1,31 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import AuthPage from './pages/AuthPage';
-import DashboardPage from './pages/DashboardPage';
-import CampaignEditPage from './pages/CampaignEditPage';
-import CampaignPlayPage from './pages/CampaignPlayPage';
+
+const AuthPage = lazy(() => import('./pages/AuthPage'));
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const CampaignEditPage = lazy(() => import('./pages/CampaignEditPage'));
+const CampaignPlayPage = lazy(() => import('./pages/CampaignPlayPage'));
 
 function PrivateRoute({ children }) {
-  const { token } = useAuth();
-  return token ? children : <Navigate to="/login" />;
+  const { isAuthenticated, loading } = useAuth();
+  if (loading) return <div className="p-10 text-center">Chargement...</div>;
+  return isAuthenticated ? children : <Navigate to="/login" />;
 }
 
 function AppContent() {
-  const { token } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans">
-     <Routes>
-        <Route path="/login" element={!token ? <AuthPage /> : <Navigate to="/" />} />
-        <Route path="/" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
-        <Route path="/campaigns/:id/edit" element={<PrivateRoute><CampaignEditPage /></PrivateRoute>} />
-        <Route path="/campaigns/:id/play" element={<PrivateRoute><CampaignPlayPage /></PrivateRoute>} />
-        <Route path="*" element={<Navigate to="/" />} />
-     </Routes>
+      <Suspense fallback={<div className="p-10 text-center">Chargement...</div>}>
+        <Routes>
+          <Route path="/login" element={loading ? <div className="p-10 text-center">Chargement...</div> : !isAuthenticated ? <AuthPage /> : <Navigate to="/" />} />
+          <Route path="/" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
+          <Route path="/campaigns/:id/edit" element={<PrivateRoute><CampaignEditPage /></PrivateRoute>} />
+          <Route path="/campaigns/:id/play" element={<PrivateRoute><CampaignPlayPage /></PrivateRoute>} />
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
+      </Suspense>
     </div>
   );
 }
