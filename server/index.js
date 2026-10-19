@@ -66,7 +66,7 @@ app.use('/api/voice', voiceRoutes);
 
 // Serve Frontend
 app.use(express.static(path.join(rootDir, 'dist')));
-app.get('*', (req, res) => {
+app.get(/^\/.*$/, (req, res) => {
   res.sendFile(path.join(rootDir, 'dist', 'index.html'));
 });
 
