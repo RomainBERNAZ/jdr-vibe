@@ -6,10 +6,10 @@ services:
     container_name: aether_db
     environment:
       POSTGRES_USER: admin
-      POSTGRES_PASSWORD: rpgpassword
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
       POSTGRES_DB: aether_rpg
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -26,8 +26,10 @@ services:
       - .:/app
       - /app/node_modules
     environment:
-      DATABASE_URL: postgres://admin:rpgpassword@db:5432/aether_rpg
-      JWT_SECRET: secret_key_super_secure
+      DATABASE_URL: "postgres://admin:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/aether_rpg"
+      JWT_SECRET: "${JWT_SECRET:?Set JWT_SECRET in .env}"
+      CORS_ORIGINS: "${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}"
+      TRUST_PROXY_HOPS: "${TRUST_PROXY_HOPS:-}"
       CHOKIDAR_USEPOLLING: "true"
     depends_on:
       - db

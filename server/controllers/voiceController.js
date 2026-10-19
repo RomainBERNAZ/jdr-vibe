@@ -5,6 +5,15 @@ import fs from 'fs';
 // Assurez-vous que OPENAI_API_KEY est définie dans votre fichier .env
 let openai;
 
+const cleanupUploadedAudio = (filePath) => {
+  if (!filePath) return;
+  try {
+    fs.unlinkSync(filePath);
+  } catch (error) {
+    if (error.code !== 'ENOENT') console.error('Erreur suppression audio temporaire:', error);
+  }
+};
+
 const initOpenAI = () => {
   if (!openai && process.env.OPENAI_API_KEY) {
     openai = new OpenAI({
@@ -16,13 +25,13 @@ const initOpenAI = () => {
 
 export const transcribeAndChat = async (req, res) => {
   try {
+    if (!req.file) {
+      return res.status(400).json({ error: "Aucun fichier audio fourni" });
+    }
+
     const client = initOpenAI();
     if (!client) {
       return res.status(500).json({ error: "Clé API OpenAI manquante dans les variables d'environnement" });
-    }
-
-    if (!req.file) {
-      return res.status(400).json({ error: "Aucun fichier audio fourni" });
     }
 
     // 1. Transcription (Whisper)
@@ -166,9 +175,6 @@ TON STYLE :
     }
     */
 
-    // Nettoyage
-    fs.unlinkSync(req.file.path);
-
     res.json({
       userText: userText,
       aiResponse: parsedResponse.text,
@@ -180,9 +186,8 @@ TON STYLE :
 
   } catch (error) {
     console.error("Erreur OpenAI:", error);
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
     res.status(500).json({ error: "Erreur traitement", details: error.message });
+  } finally {
+    cleanupUploadedAudio(req.file?.path);
   }
 };

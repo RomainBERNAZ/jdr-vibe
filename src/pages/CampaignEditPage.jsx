@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save, UserPlus, Trash2, Play, Plus } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
 import { campaignApi } from '../services/api';
 
 export default function CampaignEditPage() {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { token } = useAuth();
     const [campaign, setCampaign] = useState(null);
     const [loading, setLoading] = useState(true);
     const [newPlayerEmail, setNewPlayerEmail] = useState('');
@@ -19,11 +17,11 @@ export default function CampaignEditPage() {
 
     useEffect(() => {
         loadCampaign();
-    }, [id, token]);
+    }, [id]);
 
     const loadCampaign = async () => {
         try {
-            const data = await campaignApi.get(token, id);
+            const data = await campaignApi.get(id);
             setCampaign(data);
             setFormData({
                 name: data.name,
@@ -40,7 +38,7 @@ export default function CampaignEditPage() {
     const handleUpdate = async (e) => {
         e.preventDefault();
         try {
-            await campaignApi.update(token, id, formData);
+            await campaignApi.update(id, formData);
             // Show success feedback?
             alert('Campagne mise à jour');
         } catch (err) {
@@ -52,7 +50,7 @@ export default function CampaignEditPage() {
         e.preventDefault();
         if (!newPlayerEmail) return;
         try {
-            const updatedPlayers = await campaignApi.addPlayer(token, id, newPlayerEmail);
+            const updatedPlayers = await campaignApi.addPlayer(id, newPlayerEmail);
             setCampaign(prev => ({ ...prev, players: updatedPlayers }));
             setNewPlayerEmail('');
         } catch (err) {
@@ -63,7 +61,7 @@ export default function CampaignEditPage() {
     const handleStartCampaign = async () => {
         if (!confirm("Voulez-vous vraiment lancer la campagne ? Vous ne pourrez plus ajouter de joueurs simplement.")) return;
         try {
-            const updated = await campaignApi.update(token, id, { status: 'active' });
+            const updated = await campaignApi.update(id, { status: 'active' });
             setCampaign(prev => ({ ...prev, status: updated.status }));
         } catch (err) {
             console.error(err);
@@ -72,6 +70,17 @@ export default function CampaignEditPage() {
 
     if (loading) return <div className="p-10 text-center">Chargement...</div>;
     if (!campaign) return <div className="p-10 text-center">Campagne introuvable</div>;
+    if (!campaign.is_owner) {
+        return (
+            <div className="max-w-4xl mx-auto p-6">
+                <button onClick={() => navigate(`/campaigns/${id}/play`)} className="flex items-center gap-2 text-zinc-400 hover:text-white mb-6">
+                    <ArrowLeft className="w-4 h-4" /> Retour à la partie
+                </button>
+                <h1 className="text-2xl font-bold">{campaign.name}</h1>
+                <p className="mt-2 text-zinc-400">Seul le propriétaire peut modifier cette campagne.</p>
+            </div>
+        );
+    }
 
     const isStarted = campaign.status === 'active' || campaign.status === 'completed';
 

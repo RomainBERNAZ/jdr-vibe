@@ -1,12 +1,15 @@
-import React, { useState, useRef } from 'react';
+import React, { lazy, Suspense, useState, useRef } from 'react';
 import { Mic, Square, Loader2, MessageSquare, Shield, Heart, Coins, Backpack, Sword, Dices, Menu, X } from 'lucide-react';
-import DiceBox from './DiceBox';
+import { useAuth } from '../context/AuthContext';
+import { campaignApi } from '../services/api';
 
-const VoiceInput = ({ initialCharacterSheet }) => {
+const DiceBox = lazy(() => import('./DiceBox'));
+
+const VoiceInput = ({ campaignId, initialCharacterSheet, initialConversation = [], initialSummary = '' }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [conversation, setConversation] = useState([]);
-  const [summary, setSummary] = useState(""); // Mémoire long terme
+    const [conversation, setConversation] = useState(initialConversation);
+    const [summary, setSummary] = useState(initialSummary);
   const [characterSheet, setCharacterSheet] = useState(initialCharacterSheet || null); // Fiche perso
   const [diceRoll, setDiceRoll] = useState(null); // { type: 'd20', count: 1 }
   
@@ -67,28 +70,39 @@ const VoiceInput = ({ initialCharacterSheet }) => {
     try {
       const response = await fetch('/api/voice/chat', {
         method: 'POST',
+                credentials: 'include',
         body: formData,
       });
 
-      if (!response.ok) throw new Error('Erreur réseau');
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({}));
+                throw new Error(error.error || 'Erreur réseau');
+            }
 
       const data = await response.json();
-      
-      setConversation(prev => [
-        ...prev,
+            const nextConversation = [
+                ...conversation,
         { type: 'user', text: data.userText },
         { type: 'ai', text: data.aiResponse }
-      ]);
+            ];
+            const nextSummary = data.newSummary ?? summary;
+            const nextCharacterSheet = data.characterSheet ?? characterSheet;
+
+            setConversation(nextConversation);
 
       // Mise à jour du résumé (mémoire long terme) si le serveur l'a modifié
-      if (data.newSummary) {
-          setSummary(data.newSummary);
-      }
+            setSummary(nextSummary);
 
       // Mise à jour de la fiche perso
-      if (data.characterSheet) {
-          setCharacterSheet(data.characterSheet);
-      }
+            setCharacterSheet(nextCharacterSheet);
+
+            if (campaignId) {
+                await campaignApi.saveSession(campaignId, {
+                    conversation: nextConversation.slice(-200),
+                    summary: nextSummary,
+                    characterSheet: nextCharacterSheet
+                });
+            }
 
       // Gestion du lancer de dés (si demandé par le MJ)
       if (data.diceRoll) {
@@ -145,7 +159,9 @@ const VoiceInput = ({ initialCharacterSheet }) => {
             </h3>
         </div>
         <div className="flex-1 w-full h-full">
-            <DiceBox rollTrigger={diceRoll} />
+            <Suspense fallback={<div className="flex h-full items-center justify-center text-xs text-zinc-500">Chargement des dés...</div>}>
+                <DiceBox rollTrigger={diceRoll} />
+            </Suspense>
         </div>
       </div>
 
