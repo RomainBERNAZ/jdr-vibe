@@ -1,15 +1,5 @@
 import pool from '../config/db.js';
-
-const isOwner = (ownerId, userId) => Number(ownerId) === Number(userId);
-
-const canAccessCampaign = async (database, campaignId, userId, ownerId) => {
-  if (isOwner(ownerId, userId)) return true;
-  const membership = await database.query(
-    'SELECT 1 FROM campaign_players WHERE campaign_id = $1 AND user_id = $2',
-    [campaignId, userId]
-  );
-  return membership.rows.length > 0;
-};
+import { canAccessCampaign, isCampaignOwner } from '../utils/campaignAccess.js';
 
 const sendDatabaseError = (res, message, error) => {
   console.error(message, error);
@@ -53,7 +43,7 @@ export const getCampaign = async (req, res, database = pool) => {
       [id]
     );
     
-    res.json({ ...campaign, is_owner: isOwner(campaign.user_id, req.user.id), players: playersResult.rows });
+    res.json({ ...campaign, is_owner: isCampaignOwner(campaign.user_id, req.user.id), players: playersResult.rows });
   } catch (error) {
     sendDatabaseError(res, 'Unable to get campaign:', error);
   }
@@ -81,7 +71,7 @@ export const updateCampaign = async (req, res, database = pool) => {
     // Check ownership
     const check = await database.query('SELECT user_id FROM campaigns WHERE id = $1', [id]);
     if (check.rows.length === 0) return res.status(404).json({ error: "Not found" });
-    if (!isOwner(check.rows[0].user_id, req.user.id)) return res.status(403).json({ error: "Unauthorized" });
+    if (!isCampaignOwner(check.rows[0].user_id, req.user.id)) return res.status(403).json({ error: "Unauthorized" });
 
     const result = await database.query(
       `UPDATE campaigns 
@@ -108,7 +98,7 @@ export const addPlayer = async (req, res, database = pool) => {
     if (campRes.rows.length === 0) return res.status(404).json({ error: "Campaign not found" });
     
     const campaign = campRes.rows[0];
-    if (!isOwner(campaign.user_id, req.user.id)) return res.status(403).json({ error: "Unauthorized" });
+    if (!isCampaignOwner(campaign.user_id, req.user.id)) return res.status(403).json({ error: "Unauthorized" });
     
     if (campaign.status !== 'pending') {
       return res.status(400).json({ error: "Cannot add players to a started campaign" });
@@ -162,7 +152,7 @@ export const getCampaignSession = async (req, res, database = pool) => {
   }
 };
 
-export const saveCampaignSession = async (req, res, database = pool) => {
+export const saveCampaignCharacterSheet = async (req, res, database = pool) => {
   try {
     const { id } = req.params;
     const campaignResult = await database.query('SELECT id, user_id FROM campaigns WHERE id = $1', [id]);
@@ -173,17 +163,15 @@ export const saveCampaignSession = async (req, res, database = pool) => {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
-    const { conversation, summary, characterSheet } = req.body;
+    const { characterSheet } = req.body;
     const result = await database.query(
-      `INSERT INTO campaign_sessions (campaign_id, user_id, conversation, summary, character_sheet, updated_at)
-       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+      `INSERT INTO campaign_sessions (campaign_id, user_id, character_sheet, updated_at)
+       VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
        ON CONFLICT (campaign_id, user_id) DO UPDATE SET
-         conversation = EXCLUDED.conversation,
-         summary = EXCLUDED.summary,
          character_sheet = EXCLUDED.character_sheet,
          updated_at = CURRENT_TIMESTAMP
        RETURNING conversation, summary, character_sheet, updated_at`,
-      [id, req.user.id, JSON.stringify(conversation), summary, characterSheet === null ? null : JSON.stringify(characterSheet)]
+      [id, req.user.id, characterSheet === null ? null : JSON.stringify(characterSheet)]
     );
     res.json(result.rows[0]);
   } catch (error) {

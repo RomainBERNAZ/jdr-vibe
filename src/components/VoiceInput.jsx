@@ -1,15 +1,14 @@
 import React, { lazy, Suspense, useState, useRef } from 'react';
-import { Mic, Square, Loader2, MessageSquare, Shield, Heart, Coins, Backpack, Sword, Dices, Menu, X } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
-import { campaignApi } from '../services/api';
+import { Mic, Square, Loader2, MessageSquare, Shield, Heart, Coins, Backpack, Sword, Dices } from 'lucide-react';
+import { voiceApi } from '../services/api';
 
 const DiceBox = lazy(() => import('./DiceBox'));
 
-const VoiceInput = ({ campaignId, initialCharacterSheet, initialConversation = [], initialSummary = '' }) => {
+const VoiceInput = ({ campaignId, initialCharacterSheet, initialConversation = [] }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-    const [conversation, setConversation] = useState(initialConversation);
-    const [summary, setSummary] = useState(initialSummary);
+  const [conversation, setConversation] = useState(initialConversation);
+  const [requestError, setRequestError] = useState('');
   const [characterSheet, setCharacterSheet] = useState(initialCharacterSheet || null); // Fiche perso
   const [diceRoll, setDiceRoll] = useState(null); // { type: 'd20', count: 1 }
   
@@ -19,6 +18,7 @@ const VoiceInput = ({ campaignId, initialCharacterSheet, initialConversation = [
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
   const chatContainerRef = useRef(null);
+  const pendingTurnRef = useRef(null);
 
   const startRecording = async () => {
     try {
@@ -47,80 +47,49 @@ const VoiceInput = ({ campaignId, initialCharacterSheet, initialConversation = [
     }
   };
 
-  const handleStop = async () => {
-    const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
-    setIsProcessing(true);
+  const submitPendingTurn = async () => {
+    const pendingTurn = pendingTurnRef.current;
+    if (!pendingTurn || isProcessing) return;
 
-    const formData = new FormData();
-    formData.append('audio', audioBlob, 'recording.webm');
-    
-    // On n'envoie que le texte pour l'historique, pas tout l'objet message
-    const historyToSend = conversation.slice(-10).map(msg => ({
-        role: msg.type === 'user' ? 'user' : 'assistant',
-        content: msg.text
-    }));
-    formData.append('history', JSON.stringify(historyToSend));
-    // On envoie le résumé existant pour que le backend puisse le mettre à jour
-    formData.append('summary', summary);
-    // On envoie la fiche perso actuelle pour que l'IA la mette à jour
-    if(characterSheet) {
-        formData.append('characterSheet', JSON.stringify(characterSheet));
-    }
+    setIsProcessing(true);
+    setRequestError('');
 
     try {
-      const response = await fetch('/api/voice/chat', {
-        method: 'POST',
-                credentials: 'include',
-        body: formData,
+      const data = await voiceApi.sendTurn({
+        campaignId,
+        turnId: pendingTurn.turnId,
+        audio: pendingTurn.audio
       });
-
-            if (!response.ok) {
-                const error = await response.json().catch(() => ({}));
-                throw new Error(error.error || 'Erreur réseau');
-            }
-
-      const data = await response.json();
-            const nextConversation = [
-                ...conversation,
-        { type: 'user', text: data.userText },
-        { type: 'ai', text: data.aiResponse }
-            ];
-            const nextSummary = data.newSummary ?? summary;
-            const nextCharacterSheet = data.characterSheet ?? characterSheet;
-
-            setConversation(nextConversation);
-
-      // Mise à jour du résumé (mémoire long terme) si le serveur l'a modifié
-            setSummary(nextSummary);
-
-      // Mise à jour de la fiche perso
-            setCharacterSheet(nextCharacterSheet);
-
-            if (campaignId) {
-                await campaignApi.saveSession(campaignId, {
-                    conversation: nextConversation.slice(-200),
-                    summary: nextSummary,
-                    characterSheet: nextCharacterSheet
-                });
-            }
-
-      // Gestion du lancer de dés (si demandé par le MJ)
-      if (data.diceRoll) {
-          setDiceRoll(data.diceRoll); // Ex: { type: 'd20', count: 1 }
-      }
-
-      // Scroll auto vers le bas
+      setConversation(Array.isArray(data.conversation)
+        ? data.conversation
+        : [...conversation, { type: 'user', text: data.userText }, { type: 'ai', text: data.aiResponse }]);
+      setCharacterSheet(data.characterSheet ?? characterSheet);
+      setDiceRoll(data.diceRoll ?? null);
+      pendingTurnRef.current = null;
+      setRequestError('');
       setTimeout(() => {
         if(chatContainerRef.current) {
             chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
         }
       }, 100);
-
     } catch (error) {
-      console.error("Erreur:", error);
-      setConversation(prev => [...prev, { type: 'error', text: "Erreur de communication avec le MJ." }]);
+      console.error('Erreur de communication avec le MJ:', error);
+      setRequestError(error.message || 'Erreur de communication avec le MJ.');
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleStop = async () => {
+    const audio = new Blob(chunksRef.current, { type: 'audio/webm' });
+    try {
+      if (!globalThis.crypto?.randomUUID) {
+        throw new Error('Votre navigateur ne permet pas de sécuriser la reprise du tour.');
+      }
+      pendingTurnRef.current = { audio, turnId: globalThis.crypto.randomUUID() };
+      await submitPendingTurn();
+    } catch (error) {
+      setRequestError(error.message || 'Impossible de préparer ce tour.');
     }
   };
 
@@ -203,6 +172,44 @@ const VoiceInput = ({ campaignId, initialCharacterSheet, initialConversation = [
                     </div>
                 </div>
             )}
+
+            {requestError && (
+                <div role="alert" className="rounded-xl border border-red-900 bg-red-950/40 p-4 text-sm text-red-200">
+                    <p>{requestError}</p>
+                    <div className="mt-3 flex flex-wrap gap-3">
+                        <button
+                            type="button"
+                            onClick={submitPendingTurn}
+                            disabled={isProcessing || !pendingTurnRef.current}
+                            className="rounded-lg bg-red-700 px-3 py-2 font-semibold text-white transition hover:bg-red-600 disabled:opacity-50"
+                        >
+                            {isProcessing ? 'Nouvelle tentative...' : 'Réessayer le même tour'}
+                        </button>
+                        {pendingTurnRef.current && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    pendingTurnRef.current = null;
+                                    setRequestError('');
+                                }}
+                                disabled={isProcessing}
+                                className="rounded-lg px-3 py-2 text-red-200 transition hover:bg-red-900/60 disabled:opacity-50"
+                            >
+                                Abandonner cet enregistrement
+                            </button>
+                        )}
+                        {!pendingTurnRef.current && (
+                            <button
+                                type="button"
+                                onClick={() => setRequestError('')}
+                                className="rounded-lg px-3 py-2 text-red-200 transition hover:bg-red-900/60"
+                            >
+                                Fermer
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
 
         {/* Barre de contrôles */}
@@ -210,15 +217,15 @@ const VoiceInput = ({ campaignId, initialCharacterSheet, initialConversation = [
              {!isRecording ? (
                 <button 
                     onClick={startRecording}
-                    disabled={isProcessing}
+                    disabled={isProcessing || Boolean(requestError) || !campaignId}
                     className={`group relative flex items-center justify-center w-16 h-16 rounded-full transition-all ${
-                        isProcessing 
+                        isProcessing || requestError || !campaignId
                             ? 'bg-zinc-800 cursor-not-allowed' 
                             : 'bg-indigo-600 hover:bg-indigo-500 hover:scale-105 shadow-[0_0_20px_rgba(79,70,229,0.3)]'
                     }`}
                 >
-                    <Mic className={`w-6 h-6 text-white ${isProcessing ? 'opacity-50' : ''}`} />
-                    {!isProcessing && <span className="absolute -top-10 bg-zinc-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">Parler</span>}
+                    <Mic className={`w-6 h-6 text-white ${isProcessing || requestError || !campaignId ? 'opacity-50' : ''}`} />
+                    {!isProcessing && !requestError && campaignId && <span className="absolute -top-10 bg-zinc-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">Parler</span>}
                 </button>
             ) : (
                 <button 

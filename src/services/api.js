@@ -82,11 +82,11 @@ export const campaignApi = {
       characterSheet: data.character_sheet ?? null
     };
   },
-  saveSession: async (id, session) => {
+  saveCharacterSheet: async (id, characterSheet) => {
     const res = await request(`${API_URL}/campaigns/${id}/session`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(session)
+      body: JSON.stringify({ characterSheet })
     });
     const data = await readResponse(res);
     return {
@@ -94,5 +94,19 @@ export const campaignApi = {
       summary: data.summary || '',
       characterSheet: data.character_sheet ?? null
     };
+  }
+};
+
+export const voiceApi = {
+  sendTurn: async ({ campaignId, turnId, audio }) => {
+    const formData = new FormData();
+    formData.append('audio', audio, 'recording.webm');
+    formData.append('campaignId', String(campaignId));
+    formData.append('turnId', turnId);
+    const res = await request(`${API_URL}/voice/chat`, {
+      method: 'POST',
+      body: formData
+    });
+    return readResponse(res);
   }
 };

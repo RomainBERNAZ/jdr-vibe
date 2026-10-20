@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { getCampaign, getCampaigns, getCampaignSession, saveCampaignSession, updateCampaign } from '../controllers/campaignController.js';
+import { getCampaign, getCampaigns, getCampaignSession, saveCampaignCharacterSheet, updateCampaign } from '../controllers/campaignController.js';
 
 const campaign = { id: 42, user_id: 7, name: 'La cité perdue' };
 const players = [{ id: 8, email: 'player@example.test', character_name: 'Ariane' }];
@@ -131,16 +131,17 @@ test('does not disclose a persisted session to a non-member', async () => {
   assert.deepEqual(res.body, { error: 'Unauthorized' });
 });
 
-test('persists session data for an authorized player', async () => {
-  const conversation = [{ type: 'user', text: 'Bonjour' }];
+test('saves a character sheet without allowing the client to overwrite campaign history', async () => {
   const characterSheet = { name: 'Ariane', level: 1 };
-  const savedRow = { conversation, summary: 'La quête commence', character_sheet: characterSheet };
+  const savedRow = { conversation: [], summary: '', character_sheet: characterSheet };
   let saveValues;
+  let saveQuery;
   const database = {
     async query(sql, values) {
       if (sql.startsWith('SELECT id, user_id FROM campaigns')) return { rows: [{ id: 42, user_id: 7 }] };
       if (sql.startsWith('SELECT 1 FROM campaign_players')) return { rows: [{ '?column?': 1 }] };
       if (sql.startsWith('INSERT INTO campaign_sessions')) {
+        saveQuery = sql;
         saveValues = values;
         return { rows: [savedRow] };
       }
@@ -149,16 +150,18 @@ test('persists session data for an authorized player', async () => {
   };
   const res = createResponse();
 
-  await saveCampaignSession({
+  await saveCampaignCharacterSheet({
     params: { id: '42' },
     user: { id: 8 },
-    body: { conversation, summary: 'La quête commence', characterSheet }
+    body: { characterSheet }
   }, res, database);
 
   assert.equal(res.statusCode, 200);
   assert.deepEqual(res.body, savedRow);
-  assert.equal(saveValues[2], JSON.stringify(conversation));
-  assert.equal(saveValues[4], JSON.stringify(characterSheet));
+  assert.equal(saveValues[2], JSON.stringify(characterSheet));
+  assert.match(saveQuery, /character_sheet = EXCLUDED\.character_sheet/);
+  assert.doesNotMatch(saveQuery, /conversation = EXCLUDED\.conversation/);
+  assert.doesNotMatch(saveQuery, /summary = EXCLUDED\.summary/);
 });
 
 test('only the campaign owner can update campaign data', async () => {

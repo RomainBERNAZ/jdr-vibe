@@ -9,7 +9,8 @@ const __dirname = path.dirname(__filename);
 const migrations = [
     { version: '000_init', file: 'init.sql' },
     { version: '001_campaigns', file: 'migration_v1.sql' },
-    { version: '002_campaign_sessions', file: 'migration_v2.sql' }
+    { version: '002_campaign_sessions', file: 'migration_v2.sql' },
+    { version: '003_campaign_turns', file: 'migration_v3.sql' }
 ];
 
 export const runMigrations = async (database = pool) => {
@@ -57,4 +58,3 @@ export const runMigrations = async (database = pool) => {
 };
 
 export default runMigrations;
-

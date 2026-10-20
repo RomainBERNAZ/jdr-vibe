@@ -19,8 +19,12 @@ await once(server, 'listening');
 const baseUrl = `http://127.0.0.1:${server.address().port}/api/voice/chat`;
 let originalUploadFiles = new Set();
 
-const createAudioForm = (audio = Buffer.from('test audio')) => {
+const createAudioForm = (audio = Buffer.from('test audio'), { includeTurnData = true } = {}) => {
   const form = new FormData();
+  if (includeTurnData) {
+    form.append('campaignId', '42');
+    form.append('turnId', '9b7d2f4e-0e14-4c54-9ba7-11a9dc7e0581');
+  }
   form.append('audio', new Blob([audio], { type: 'audio/webm' }), 'recording.webm');
   return form;
 };
@@ -64,6 +68,17 @@ test('rejects an audio upload larger than the configured limit', async () => {
   });
 
   assert.equal(response.status, 413);
+  assert.deepEqual(await fs.readdir(uploadsDir), [...originalUploadFiles]);
+});
+
+test('rejects an audio upload without campaign context and removes the temporary file', async () => {
+  const response = await fetch(baseUrl, {
+    method: 'POST',
+    headers: { Authorization: authorization() },
+    body: createAudioForm(Buffer.from('test audio'), { includeTurnData: false })
+  });
+
+  assert.equal(response.status, 400);
   assert.deepEqual(await fs.readdir(uploadsDir), [...originalUploadFiles]);
 });
 

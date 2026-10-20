@@ -27,10 +27,11 @@ test('runs each versioned migration once and in order', async () => {
   await runMigrations(database);
   await runMigrations(database);
 
-  assert.deepEqual([...appliedVersions], ['000_init', '001_campaigns', '002_campaign_sessions']);
+  assert.deepEqual([...appliedVersions], ['000_init', '001_campaigns', '002_campaign_sessions', '003_campaign_turns']);
   assert.equal(statements.filter(({ sql }) => sql.includes('CREATE TABLE IF NOT EXISTS users')).length, 1);
   assert.equal(statements.filter(({ sql }) => sql.includes('ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS status')).length, 1);
   assert.equal(statements.filter(({ sql }) => sql.includes('CREATE TABLE IF NOT EXISTS campaign_sessions')).length, 1);
+  assert.equal(statements.filter(({ sql }) => sql.includes('CREATE TABLE IF NOT EXISTS campaign_turns')).length, 1);
 });
 
 test('rolls back and stops startup when a migration fails', async () => {

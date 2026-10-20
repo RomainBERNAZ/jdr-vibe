@@ -25,8 +25,8 @@ RUN npm ci --omit=dev
 
 # Copy backend structure
 COPY server ./server
-# Copy database init script
-COPY init.sql migration_v1.sql migration_v2.sql ./
+# Copy database migrations
+COPY init.sql migration_v1.sql migration_v2.sql migration_v3.sql ./
 
 # Copy frontend build from builder stage
 COPY --from=builder /app/dist ./dist
