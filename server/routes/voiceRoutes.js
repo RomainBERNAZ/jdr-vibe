@@ -5,7 +5,8 @@ import { fileURLToPath } from 'url';
 import { rateLimit } from 'express-rate-limit';
 import { authenticateToken } from '../middleware/auth.js';
 import { requireTrustedOrigin } from '../middleware/trustedOrigin.js';
-import { transcribeAndChat } from '../controllers/voiceController.js';
+import { cleanupUploadedAudio, transcribeAndChat } from '../controllers/voiceController.js';
+import { voiceTurnSchema } from '../validation/schemas.js';
 
 const router = express.Router();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -34,8 +35,8 @@ const upload = multer({
   limits: {
     fileSize: 25 * 1024 * 1024,
     files: 1,
-    fields: 3,
-    parts: 4,
+    fields: 2,
+    parts: 3,
     fieldSize: 512 * 1024
   }
 });
@@ -51,11 +52,27 @@ const uploadAudio = (req, res, next) => {
   });
 };
 
+const validateVoiceTurn = (req, res, next) => {
+  const result = voiceTurnSchema.safeParse(req.body ?? {});
+  if (!result.success) {
+    cleanupUploadedAudio(req.file?.path);
+    return res.status(400).json({
+      error: 'Invalid request',
+      details: result.error.issues.map((issue) => ({
+        field: issue.path.join('.'),
+        message: issue.message
+      }))
+    });
+  }
+
+  req.body = result.data;
+  next();
+};
+
 // Route POST /api/voice/chat
 router.use(authenticateToken);
-router.post('/chat', requireTrustedOrigin, chatRateLimit, uploadAudio, transcribeAndChat);
+router.post('/chat', requireTrustedOrigin, chatRateLimit, uploadAudio, validateVoiceTurn, transcribeAndChat);
 
 export default router;
-
 
 

@@ -104,10 +104,7 @@ export default function CampaignPlayPage() {
                     try {
                         const legacyCharacter = JSON.parse(localStorage.getItem(`character_${id}`) || 'null');
                         if (legacyCharacter) {
-                            loadedSession = await campaignApi.saveSession(id, {
-                                ...loadedSession,
-                                characterSheet: legacyCharacter
-                            });
+                            loadedSession = await campaignApi.saveCharacterSheet(id, legacyCharacter);
                             localStorage.removeItem(`character_${id}`);
                         }
                     } catch (error) {
@@ -134,10 +131,7 @@ export default function CampaignPlayPage() {
         setSavingCharacter(true);
         setPageError('');
         try {
-            const updatedSession = await campaignApi.saveSession(id, {
-                ...session,
-                characterSheet: newCharacter
-            });
+            const updatedSession = await campaignApi.saveCharacterSheet(id, newCharacter);
             setSession(updatedSession);
             setShowCharacterCreation(false);
         } catch (error) {
@@ -300,8 +294,13 @@ export default function CampaignPlayPage() {
             {/* Content Layer */}
             <div className="relative z-20 h-full flex flex-col">
                 <div className="absolute top-2 left-2 md:top-4 md:left-4">
-                    <button onClick={() => navigate('/')} className="bg-zinc-900/80 text-white p-2 rounded hover:bg-indigo-600 transition border border-zinc-700">
+                    <button
+                        onClick={() => navigate('/')}
+                        aria-label="Retour au menu des campagnes"
+                        className="flex items-center gap-2 rounded border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-white transition hover:bg-indigo-600"
+                    >
                         <ArrowLeft className="w-5 h-5" />
+                        <span className="hidden text-sm sm:inline">Menu</span>
                     </button>
                 </div>
 
@@ -313,7 +312,6 @@ export default function CampaignPlayPage() {
                                 campaignId={id}
                                 initialCharacterSheet={session.characterSheet}
                                 initialConversation={session.conversation}
-                                initialSummary={session.summary}
                             />
                         </div>
                     ) : (

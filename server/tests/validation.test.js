@@ -4,10 +4,11 @@ import { validate } from '../middleware/validate.js';
 import {
   addPlayerSchema,
   campaignIdSchema,
-  campaignSessionSchema,
+  campaignCharacterSheetSchema,
   createCampaignSchema,
   credentialsSchema,
-  updateCampaignSchema
+  updateCampaignSchema,
+  voiceTurnSchema
 } from '../validation/schemas.js';
 
 const createResponse = () => ({
@@ -69,18 +70,27 @@ test('validates campaign ids and player emails', () => {
   assert.equal(addPlayerSchema.safeParse({ email: 'invalid' }).success, false);
 });
 
-test('caps persisted conversation size and accepts character sheets', () => {
-  const valid = campaignSessionSchema.safeParse({
+test('accepts character sheet saves without client-supplied campaign history', () => {
+  assert.equal(campaignCharacterSheetSchema.safeParse({
+    characterSheet: { name: 'Ariane', level: 1 }
+  }).success, true);
+  assert.equal(campaignCharacterSheetSchema.safeParse({
     conversation: [{ type: 'user', text: 'Bonjour' }],
     summary: '',
     characterSheet: { name: 'Ariane', level: 1 }
-  });
-  const invalid = campaignSessionSchema.safeParse({
-    conversation: Array.from({ length: 1001 }, () => ({ type: 'user', text: 'x' })),
-    summary: '',
-    characterSheet: null
-  });
+  }).success, false);
+});
 
-  assert.equal(valid.success, true);
-  assert.equal(invalid.success, false);
+test('validates a voice turn id and its campaign', () => {
+  assert.deepEqual(voiceTurnSchema.safeParse({
+    campaignId: '42',
+    turnId: '9b7d2f4e-0e14-4c54-9ba7-11a9dc7e0581'
+  }).data, {
+    campaignId: 42,
+    turnId: '9b7d2f4e-0e14-4c54-9ba7-11a9dc7e0581'
+  });
+  assert.equal(voiceTurnSchema.safeParse({
+    campaignId: '0',
+    turnId: 'not-a-uuid'
+  }).success, false);
 });

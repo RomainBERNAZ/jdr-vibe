@@ -37,13 +37,22 @@ export const campaignIdSchema = z.object({
   id: z.coerce.number().int().positive()
 });
 
-const conversationMessageSchema = z.object({
-  type: z.enum(['user', 'ai', 'error']),
-  text: z.string().max(4000)
+export const voiceTurnSchema = z.object({
+  campaignId: z.coerce.number().int().positive(),
+  turnId: z.uuid()
 }).strict();
 
-export const campaignSessionSchema = z.object({
-  conversation: z.array(conversationMessageSchema).max(200),
-  summary: z.string().max(20000),
+export const campaignCharacterSheetSchema = z.object({
   characterSheet: z.record(z.string(), z.unknown()).nullable()
 }).strict();
+
+export const narrativeResponseSchema = z.object({
+  text: z.string().trim().min(1).max(4000),
+  newScene: z.boolean().optional(),
+  imagePrompt: z.string().max(2000).optional(),
+  characterSheet: z.record(z.string(), z.unknown()).nullable().optional(),
+  diceRoll: z.object({
+    type: z.enum(['d6', 'd20', 'd100']),
+    count: z.number().int().positive().max(20).default(1)
+  }).strict().nullable().optional()
+});
